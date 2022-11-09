@@ -48,7 +48,6 @@ if __name__ == "__main__":
 
     set_iree_runtime_flags()
     unet = get_unet()
-    vae = get_vae()
     clip = get_clip()
 
     tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
@@ -129,7 +128,10 @@ if __name__ == "__main__":
 
     # scale and decode the image latents with vae
     latents = 1 / 0.18215 * latents
+    torch.save(latents, "unet_latents_tensor.pt")
+    print(f"saved tensor: size = {latents.shape}")
     latents_numpy = latents.detach().numpy()
+    vae = get_vae()
     profile_device = start_profiling(file_path="vae.rdc")
     image = vae.forward((latents_numpy,))
     end_profiling(profile_device)

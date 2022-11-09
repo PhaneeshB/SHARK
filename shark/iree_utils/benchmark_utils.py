@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import iree.runtime.scripts.iree_benchmark_module as benchmark_module
+#import iree.runtime.scripts.iree_benchmark_module as benchmark_module
 from shark.iree_utils._common import run_cmd, iree_device_map
 import numpy as np
 import os

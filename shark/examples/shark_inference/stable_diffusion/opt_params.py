@@ -96,7 +96,7 @@ def get_vae():
         bucket = "gs://shark_tank/prashant_nod"
         model_name = "vae_22nov_fp32"
         iree_flags += [
-            "--iree-flow-enable-conv-nchw-to-nhwc-transform",
+            # "--iree-flow-enable-conv-nchw-to-nhwc-transform",
             "--iree-flow-enable-padding-linalg-ops",
             "--iree-flow-linalg-ops-padding-size=16",
         ]
