@@ -125,4 +125,23 @@ p.add_argument(
     help="flag for inserting debug frames between iterations for use with rgp.",
 )
 
+p.add_argument(
+    "--enable_attention_slice",
+    default=False,
+    action=argparse.BooleanOptionalAction,
+    help=("Enable attention slicing in in Stable Diffusion to run with less memory.\n"
+    "Note: Using this option will compile the model and not download it from shark_tank even if the value of --import-mlir flag is False"
+    "Defaults to false"),
+)
+
+p.add_argument(
+    "--attention_slice_size",
+    default=0,
+    type=int,
+    help=("Specify attention slice size when --enable_attention_slice is set.\n"
+    "slice size should be a divisor of the number of attention heads used in the model"
+    "as the number of steps = num_attention_head / attention_slice_size"
+    "Deafult value is 0 which will automatically choose slice_size as half the size of num_attention_head"),
+)
+
 args = p.parse_args()

@@ -34,7 +34,9 @@ def get_unet():
                 "--iree-flow-linalg-ops-padding-size=32",
                 "--iree-flow-enable-conv-img2col-transform",
             ]
-            if args.import_mlir:
+
+            if args.import_mlir or args.enable_attention_slice:
+                print(f"[DEBUG] Attn slice ON. Compiling UNet fp16 via import mlir")
                 return get_unet_mlir(model_name, iree_flags)
             return get_shark_model(bucket, model_name, iree_flags)
 
@@ -43,11 +45,12 @@ def get_unet():
         bucket = "gs://shark_tank/stable_diffusion"
         model_name = "unet_1dec_fp32"
         iree_flags += [
-            "--iree-flow-enable-conv-nchw-to-nhwc-transform",
+#            "--iree-flow-enable-conv-nchw-to-nhwc-transform",
             "--iree-flow-enable-padding-linalg-ops",
             "--iree-flow-linalg-ops-padding-size=16",
         ]
-        if args.import_mlir:
+        if args.import_mlir or args.enable_attention_slice:
+            print(f"[DEBUG] Attn slice ON. Compiling UNet fp32 via import mlir")
             return get_unet_mlir(model_name, iree_flags)
         return get_shark_model(bucket, model_name, iree_flags)
 
@@ -91,7 +94,7 @@ def get_vae():
         bucket = "gs://shark_tank/stable_diffusion"
         model_name = "vae_1dec_fp32"
         iree_flags += [
-            "--iree-flow-enable-conv-nchw-to-nhwc-transform",
+#            "--iree-flow-enable-conv-nchw-to-nhwc-transform",
             "--iree-flow-enable-padding-linalg-ops",
             "--iree-flow-linalg-ops-padding-size=16",
         ]

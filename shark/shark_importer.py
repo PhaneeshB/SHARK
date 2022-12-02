@@ -246,7 +246,7 @@ class SharkImporter:
 
 
 # Applies fx conversion to the model and imports the mlir.
-def import_with_fx(model, inputs, debug=False):
+def import_with_fx(model, inputs, debug=True):
     import torch
     from torch.fx.experimental.proxy_tensor import make_fx
     from torch._decomp import get_decompositions

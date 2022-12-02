@@ -69,7 +69,7 @@ def get_vae_mlir(model_name="vae", extra_args=[]):
             self.vae = AutoencoderKL.from_pretrained(
                 model_config[args.version],
                 subfolder="vae",
-                revision="fp16",
+                revision="fp16" if args.precision == "fp16" else "main",
             )
 
         def forward(self, input):
@@ -77,10 +77,13 @@ def get_vae_mlir(model_name="vae", extra_args=[]):
             return (x / 2 + 0.5).clamp(0, 1)
 
     vae = VaeModel()
-    vae = vae.half().cuda()
-    inputs = tuple(
-        [inputs.half().cuda() for inputs in model_input[args.version]["vae"]]
-    )
+    if args.precision == "fp16":
+        vae = vae.half().cuda()
+        inputs = tuple(
+            [inputs.half().cuda() for inputs in model_input[args.version]["vae"]]
+        )
+    else:
+        inputs = model_input[args.version]["vae"]
     shark_vae = compile_through_fx(
         vae,
         inputs,
@@ -97,10 +100,18 @@ def get_unet_mlir(model_name="unet", extra_args=[]):
             self.unet = UNet2DConditionModel.from_pretrained(
                 model_config[args.version],
                 subfolder="unet",
-                revision="fp16",
+                revision="fp16" if args.precision == "fp16" else "main",
             )
             self.in_channels = self.unet.in_channels
             self.train(False)
+            if args.enable_attention_slice:
+                if args.attention_slice_size == 0:
+                    if isinstance(self.unet.config.attention_head_dim, int):
+                        attention_slice_size = self.unet.config.attention_head_dim // 2
+                    else:
+                        attention_slice_size = min(self.unet.config.attention_head_dim)
+                print(f"[DEBUG] num heads = {self.unet.config.attention_head_dim}   || slice size = {attention_slice_size}")
+                self.unet.set_attention_slice(attention_slice_size)
 
         def forward(self, latent, timestep, text_embedding, guidance_scale):
             # expand the latents if we are doing classifier-free guidance to avoid doing two forward passes.
@@ -115,13 +126,18 @@ def get_unet_mlir(model_name="unet", extra_args=[]):
             return noise_pred
 
     unet = UnetModel()
-    unet = unet.half().cuda()
-    inputs = tuple(
-        [
-            inputs.half().cuda() if len(inputs.shape) != 0 else inputs
-            for inputs in model_input[args.version]["unet"]
-        ]
-    )
+    if args.precision == "fp16":
+        unet = unet.half().cuda()
+        inputs = tuple(
+            [
+                inputs.half().cuda() if len(inputs.shape) != 0 else inputs
+                for inputs in model_input[args.version]["unet"]
+            ]
+        )
+    else:
+        inputs = model_input[args.version]["unet"]
+
+
     shark_unet = compile_through_fx(
         unet,
         inputs,
