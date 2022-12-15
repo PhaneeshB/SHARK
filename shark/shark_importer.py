@@ -164,6 +164,11 @@ class SharkImporter:
                 f"There is no input provided: {self.inputs}, please provide inputs or simply run import_mlir."
             )
             sys.exit(1)
+        print(f"Model name: {model_name}")
+        # HARD CODING FOR generation need to change path for other machines
+        dir = f'{os.getcwd()}/SD_MLIRS/{model_name}'
+        os.makedirs(dir, exist_ok=True)
+        print(f'directory created : {os.getcwd()}/SD_MLIRS/{model_name}')
         model_name_mlir = model_name + "_" + self.frontend + ".mlir"
         artifact_path = os.path.join(dir, model_name_mlir)
         imported_mlir = self.import_mlir(

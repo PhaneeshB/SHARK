@@ -120,7 +120,7 @@ def get_vae_encode_mlir(model_name="vae_encode", extra_args=[]):
             self.vae = AutoencoderKL.from_pretrained(
                 model_config[args.version],
                 subfolder="vae",
-                revision="fp16",
+                revision=model_revision,
             )
 
         def forward(self, x):
