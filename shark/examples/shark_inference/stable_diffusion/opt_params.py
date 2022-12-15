@@ -15,6 +15,13 @@ if BATCH_SIZE != 1:
 if "rdna3" not in args.iree_vulkan_target_triple:
     args.use_tuned = False
 
+def _get_mlir_model_name(model):
+    date = "19dec"
+    version = args.version.replace('.', 'p')
+    precision = args.precision if model != "clip" else "fp32"
+    prompt_max_len = f"{args.max_length}"
+    name = '_'.join([model, date, version, precision, prompt_max_len])
+    return name
 
 def get_unet():
     iree_flags = []
@@ -50,6 +57,7 @@ def get_unet():
                 "--iree-flow-enable-conv-img2col-transform",
             ]
             if args.import_mlir:
+                model_name = _get_mlir_model_name("unet")
                 return get_unet_mlir(model_name, iree_flags)
             return get_shark_model(bucket, model_name, iree_flags)
 
@@ -63,6 +71,7 @@ def get_unet():
             "--iree-flow-linalg-ops-padding-size=16",
         ]
         if args.import_mlir:
+            model_name = _get_mlir_model_name("unet")
             return get_unet_mlir(model_name, iree_flags)
         return get_shark_model(bucket, model_name, iree_flags)
 
@@ -119,6 +128,7 @@ def get_vae():
                 "--iree-flow-enable-conv-img2col-transform",
             ]
             if args.import_mlir:
+                model_name = _get_mlir_model_name("vae")
                 return get_vae_mlir(model_name, iree_flags)
             return get_shark_model(bucket, model_name, iree_flags)
 
@@ -131,6 +141,7 @@ def get_vae():
             "--iree-flow-linalg-ops-padding-size=16",
         ]
         if args.import_mlir:
+            model_name = _get_mlir_model_name("vae")
             return get_vae_mlir(model_name, iree_flags)
         return get_shark_model(bucket, model_name, iree_flags)
 
@@ -152,6 +163,7 @@ def get_vae_encode():
             "--iree-flow-linalg-ops-padding-size=32",
         ]
         if args.import_mlir:
+            model_name = _get_mlir_model_name("vae_encode")
             return get_vae_encode_mlir(model_name, iree_flags)
         return get_shark_model(bucket, model_name, iree_flags)
 
@@ -164,6 +176,7 @@ def get_vae_encode():
             "--iree-flow-linalg-ops-padding-size=16",
         ]
         if args.import_mlir:
+            model_name = _get_mlir_model_name("vae_encode")
             return get_vae_mlir(model_name, iree_flags)
         return get_shark_model(bucket, model_name, iree_flags)
 
@@ -191,5 +204,6 @@ def get_clip():
         "--iree-flow-enable-padding-linalg-ops",
     ]
     if args.import_mlir:
+        model_name = _get_mlir_model_name("clip")
         return get_clip_mlir(model_name, iree_flags)
     return get_shark_model(bucket, model_name, iree_flags)

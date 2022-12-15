@@ -164,6 +164,11 @@ class SharkImporter:
                 f"There is no input provided: {self.inputs}, please provide inputs or simply run import_mlir."
             )
             sys.exit(1)
+        print(f"Model name: {model_name}")
+        # HARD CODING FOR generation need to change path for other machines
+        dir = f'{os.getcwd()}/SD_MLIRS/{model_name}_{self.frontend}'
+        os.makedirs(dir, exist_ok=True)
+        print(f'directory created : {os.getcwd()}/SD_MLIRS/{model_name}')
         model_name_mlir = model_name + "_" + self.frontend + ".mlir"
         artifact_path = os.path.join(dir, model_name_mlir)
         imported_mlir = self.import_mlir(
@@ -246,7 +251,7 @@ class SharkImporter:
 
 
 # Applies fx conversion to the model and imports the mlir.
-def import_with_fx(model, inputs, debug=False):
+def import_with_fx(model, inputs, debug=False, model_name="model"):
     import torch
     from torch.fx.experimental.proxy_tensor import make_fx
     from torch._decomp import get_decompositions
@@ -293,7 +298,7 @@ def import_with_fx(model, inputs, debug=False):
     )
 
     if debug:
-        (mlir_module, func_name), _, _ = mlir_importer.import_debug()
+        (mlir_module, func_name), _, _ = mlir_importer.import_debug(model_name=model_name)
         return mlir_module, func_name
 
     mlir_module, func_name = mlir_importer.import_mlir()
