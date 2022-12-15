@@ -14,6 +14,17 @@ if BATCH_SIZE != 1:
     sys.exit("Only batch size 1 is supported.")
 
 
+def _get_mlir_model_name(model):
+    date = "22dec"
+    version = args.version.replace('.', 'p')
+    precision = args.precision if model != "clip" else "fp32"
+    prompt_max_len = f"{args.max_length}"
+    name = '_'.join(["oj", model, date, version, precision])
+    if "vae" not in model:
+        name += f"_{prompt_max_len}"
+    return name
+
+
 def get_params(model_key):
     iree_flags = []
     if len(args.iree_vulkan_target_triple) > 0:
@@ -61,6 +72,7 @@ def get_unet():
                 "--iree-flow-linalg-ops-padding-size=16",
             ]
         if args.import_mlir:
+            model_name = _get_mlir_model_name("unet")
             return get_unet_mlir(model_name, iree_flags)
         return get_shark_model(bucket, model_name, iree_flags)
 
@@ -100,7 +112,9 @@ def get_vae():
             ]
         if args.import_mlir:
             if args.use_base_vae:
+                model_name = _get_mlir_model_name("vaebase")
                 return get_base_vae_mlir(model_name, iree_flags)
+            model_name = _get_mlir_model_name("vae")
             return get_vae_mlir(model_name, iree_flags)
         return get_shark_model(bucket, model_name, iree_flags)
 
@@ -118,5 +132,6 @@ def get_clip():
         "--iree-flow-enable-padding-linalg-ops",
     ]
     if args.import_mlir:
+        model_name = _get_mlir_model_name("clip")
         return get_clip_mlir(model_name, iree_flags)
     return get_shark_model(bucket, model_name, iree_flags)
