@@ -17,7 +17,11 @@ from tqdm.auto import tqdm
 import numpy as np
 from random import randint
 from stable_args import args
-from utils import get_shark_model, set_iree_runtime_flags
+from utils import (
+    get_shark_model,
+    set_iree_runtime_flags,
+    make_qualified_device_name,
+)
 from opt_params import get_unet, get_vae, get_clip
 from schedulers import (
     SharkEulerDiscreteScheduler,
@@ -76,7 +80,7 @@ if __name__ == "__main__":
         sys.exit("More than one prompt is not supported yet.")
     if batch_size != len(neg_prompt):
         sys.exit("prompts and negative prompts must be of same length")
-
+    make_qualified_device_name()
     set_iree_runtime_flags()
     clip = get_clip()
     unet = get_unet()

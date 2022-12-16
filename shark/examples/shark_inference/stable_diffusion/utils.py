@@ -4,7 +4,11 @@ import torch
 from shark.shark_inference import SharkInference
 from stable_args import args
 from shark.shark_importer import import_with_fx
-from shark.iree_utils.vulkan_utils import set_iree_vulkan_runtime_flags
+from shark.iree_utils.vulkan_utils import (
+    set_iree_vulkan_runtime_flags,
+    get_vulkan_triple_flag,
+)
+from shark.iree_utils._common import map_device_to_name_path
 
 
 def _compile_module(shark_module, model_name, extra_args=[]):
@@ -86,3 +90,16 @@ def set_iree_runtime_flags():
         set_iree_vulkan_runtime_flags(flags=vulkan_runtime_flags)
 
     return
+
+
+def make_qualified_device_name():
+    # modify device name to be fully qualified device name
+    # of the format driver://path
+    # supported for vulkan as of now
+
+    if "vulkan" in args.device:
+        name, args.device = map_device_to_name_path(args.device)
+        triple_flag = get_vulkan_triple_flag(device_name=name).split("=")[1]
+        # set triple flag to avoid multiple calls to get_vulkan_triple_flag
+        if args.iree_vulkan_target_triple == "" and triple_flag is not None:
+            args.iree_vulkan_target_triple = triple_flag

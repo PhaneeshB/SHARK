@@ -14,7 +14,7 @@ if BATCH_SIZE != 1:
 
 # use tuned models only in the case of rdna3 cards.
 if not args.iree_vulkan_target_triple:
-    vulkan_triple_flags = get_vulkan_triple_flag()
+    vulkan_triple_flags = get_vulkan_triple_flag(args.device)
     if vulkan_triple_flags and "rdna3" not in vulkan_triple_flags:
         args.use_tuned = False
 elif "rdna3" not in args.iree_vulkan_target_triple:
