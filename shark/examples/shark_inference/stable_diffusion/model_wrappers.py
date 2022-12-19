@@ -13,6 +13,13 @@ model_config = {
 # clip has 2 variants of max length 77 or 64.
 model_clip_max_length = 64 if args.max_length == 64 else 77
 
+model_variant = {
+    "stablediffusion": "SD",
+    "anythingv3": "Linaqruf/anything-v3.0",
+    "dreamlike": "dreamlike-art/dreamlike-diffusion-1.0",
+    "openjourney": "prompthero/openjourney",
+}
+
 model_input = {
     "v2.1": {
         "clip": (torch.randint(1, 2, (2, model_clip_max_length)),),
@@ -47,7 +54,10 @@ model_input = {
 }
 
 # revision param for from_pretrained defaults to "main" => fp32
-model_revision = "fp16" if args.precision == "fp16" else "main"
+model_revision = {
+    "stablediffusion": "fp16" if args.precision == "fp16" else "main",
+    "anythingv3": "diffusers",
+}
 
 
 def get_clip_mlir(model_name="clip_text", extra_args=[]):
@@ -58,6 +68,13 @@ def get_clip_mlir(model_name="clip_text", extra_args=[]):
     if args.version != "v1.4":
         text_encoder = CLIPTextModel.from_pretrained(
             model_config[args.version], subfolder="text_encoder"
+        )
+
+    if args.variant == "anythignv3":
+        text_encoder = CLIPTextModel.from_pretrained(
+            model_variant[args.variant],
+            subfolder="text_encoder",
+            revision="diffusers",
         )
 
     class CLIPText(torch.nn.Module):
@@ -83,9 +100,11 @@ def get_vae_mlir(model_name="vae", extra_args=[]):
         def __init__(self):
             super().__init__()
             self.vae = AutoencoderKL.from_pretrained(
-                model_config[args.version],
+                model_config[args.version]
+                if args.variant == "stablediffusion"
+                else model_variant[args.variant],
                 subfolder="vae",
-                revision=model_revision,
+                revision=model_revision[args.variant],
             )
 
         def forward(self, input):
@@ -96,17 +115,27 @@ def get_vae_mlir(model_name="vae", extra_args=[]):
             return x.round()
 
     vae = VaeModel()
-    if args.precision == "fp16":
-        vae = vae.half().cuda()
-        inputs = tuple(
-            [
-                inputs.half().cuda()
-                for inputs in model_input[args.version]["vae"]
-            ]
-        )
+    if args.variant == "stablediffusion":
+        if args.precision == "fp16":
+            vae = vae.half().cuda()
+            inputs = tuple(
+                [
+                    inputs.half().cuda()
+                    for inputs in model_input[args.version]["vae"]
+                ]
+            )
+        else:
+            inputs = model_input[args.version]["vae"]
+    elif args.variant == "anythingv3":
+            vae = vae.half().cuda()
+            inputs = tuple(
+                [
+                    inputs.half().cuda()
+                    for inputs in model_input["v1.4"]["vae"]
+                ]
+            )
     else:
-        inputs = model_input[args.version]["vae"]
-
+        raise (f"{args.variant} not yet added")
     shark_vae = compile_through_fx(
         vae,
         inputs,
@@ -121,9 +150,11 @@ def get_unet_mlir(model_name="unet", extra_args=[]):
         def __init__(self):
             super().__init__()
             self.unet = UNet2DConditionModel.from_pretrained(
-                model_config[args.version],
+                model_config[args.version]
+                if args.variant == "stablediffusion"
+                else model_variant[args.variant],
                 subfolder="unet",
-                revision=model_revision,
+                revision=model_revision[args.variant],
             )
             self.in_channels = self.unet.in_channels
             self.train(False)
@@ -141,16 +172,29 @@ def get_unet_mlir(model_name="unet", extra_args=[]):
             return noise_pred
 
     unet = UnetModel()
-    if args.precision == "fp16":
-        unet = unet.half().cuda()
-        inputs = tuple(
-            [
-                inputs.half().cuda() if len(inputs.shape) != 0 else inputs
-                for inputs in model_input[args.version]["unet"]
-            ]
-        )
+    if args.variant == "stablediffusion":
+        if args.precision == "fp16":
+            unet = unet.half().cuda()
+            inputs = tuple(
+                [
+                    inputs.half().cuda() if len(inputs.shape) != 0 else inputs
+                    for inputs in model_input[args.version]["unet"]
+                ]
+            )
+        else:
+            inputs = model_input[args.version]["unet"]
+    elif args.variant == "anythingv3":
+        # unet = unet.half().cuda()
+        # inputs = tuple(
+        #     [
+        #         inputs.half().cuda() if len(inputs.shape) != 0 else inputs
+        #         for inputs in model_input["v1.4"]["unet"]
+        #     ]
+        # )
+        inputs = model_input["v1.4"]["unet"]
+
     else:
-        inputs = model_input[args.version]["unet"]
+        raise (f"{args.variant} not yet added")
     shark_unet = compile_through_fx(
         unet,
         inputs,
