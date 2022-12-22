@@ -124,6 +124,14 @@ class SharkImporter:
         if self.frontend in ["tf", "tensorflow"]:
             return [x.numpy() for x in array_tuple]
 
+    def create_hash(self, file_name):
+        import hashlib
+        with open(file_name, "rb") as f:
+            file_hash = hashlib.blake2b()
+            while chunk := f.read(2**20):
+                file_hash.update(chunk)
+        return file_hash.hexdigest()
+
     # Saves `function_name.npy`, `inputs.npz`, `golden_out.npz` and `model_name.mlir` in the directory `dir`.
     def save_data(
         self, dir, model_name, mlir_data, func_name, inputs, outputs
@@ -145,9 +153,13 @@ class SharkImporter:
         np.savez(os.path.join(dir, outputs_name), *outputs)
         np.save(os.path.join(dir, func_file_name), np.array(func_name))
 
+
         if self.frontend == "torch":
             with open(os.path.join(dir, model_name_mlir), "wb") as mlir_file:
                 mlir_file.write(mlir_data)
+
+        mlir_hash = self.create_hash(os.path.join(dir, model_name_mlir))
+        np.save(os.path.join(dir, "hash"), np.array(mlir_hash))
 
         return
 
