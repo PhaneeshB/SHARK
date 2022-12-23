@@ -16,10 +16,10 @@ if BATCH_SIZE != 1:
 
 def _get_mlir_model_name(model):
     date = "22dec"
-    version = args.version.replace('.', 'p')
+    # version = args.version.replace('.', 'p')/
     precision = args.precision if model != "clip" else "fp32"
     prompt_max_len = f"{args.max_length}"
-    name = '_'.join(["oj", model, date, version, precision])
+    name = '_'.join(["oj", model, date, precision])
     if "vae" not in model:
         name += f"_{prompt_max_len}"
     return name
