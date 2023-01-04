@@ -37,6 +37,14 @@
                 "dtype":"f32"
             }
         },
+        "vae_encode": {
+            "latents" : {
+                "shape" : [
+                    "1*batch_size","height","width",3
+                ],
+                "dtype":"f32"
+            }
+        },
         "clip": {
             "token" : {
                 "shape" : [
@@ -81,6 +89,14 @@
             "latents" : {
                 "shape" : [
                     "1*batch_size",4,"height","width"
+                ],
+                "dtype":"f32"
+            }
+        },
+        "vae_encode": {
+            "latents" : {
+                "shape" : [
+                    "1*batch_size","height","width", 3
                 ],
                 "dtype":"f32"
             }

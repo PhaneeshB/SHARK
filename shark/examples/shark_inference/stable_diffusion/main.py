@@ -114,11 +114,12 @@ if __name__ == "__main__":
     disk_space_check(Path.cwd())
 
     if not args.import_mlir:
-        from opt_params import get_unet, get_vae, get_clip
+        from opt_params import get_unet, get_vae, get_clip, get_vae_encode
 
         clip = get_clip()
         unet = get_unet()
         vae = get_vae()
+        vae_encode = get_vae_encode()
     else:
         if args.ckpt_loc != "":
             assert args.ckpt_loc.lower().endswith(
@@ -191,6 +192,20 @@ if __name__ == "__main__":
             generator=generator,
             dtype=torch.float32,
         ).to(dtype)
+        print(f"latents type {latents.dtype}")
+        if args.img_path is not None:
+            init_img = Image.open(args.img_path)
+            if args.hf_model_id in ["stabilityai/stable-diffusion-2-1", "stabilityai/stable-diffusion-2-1-base"]:
+                init_img = init_img.resize((768, 768))
+            else:
+                init_img = init_img.resize((512, 512))
+            input_arr = np.stack([np.array(i) for i in init_img], axis=0)
+            input_arr = input_arr / 255.0
+            input_arr = torch.from_numpy(input_arr).permute(0, 3, 1, 2).to(dtype)
+            input_arr = 2 * (input_arr - 0.5)
+            latents = vae_encode("forward", (init_img,))
+            latents = torch.from_numpy(latents)
+
         if run == 0:
             # Warmup phase to improve performance.
             if args.warmup_count >= 1:
@@ -228,9 +243,9 @@ if __name__ == "__main__":
             text_embeddings_numpy = text_embeddings.detach().numpy()
 
             scheduler.set_timesteps(num_inference_steps)
-            scheduler.is_scale_input_called = True
-
-        latents = latents * scheduler.init_noise_sigma
+            if args.img_path is None:
+                scheduler.is_scale_input_called = True
+                latents = latents * scheduler.init_noise_sigma
 
         avg_ms = 0
         for i, t in tqdm(

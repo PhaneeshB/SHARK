@@ -5,6 +5,7 @@ from resources import base_models
 from collections import defaultdict
 import torch
 import sys
+import numpy as np
 
 
 # These shapes are parameter dependent.
@@ -202,6 +203,36 @@ class SharkifyStableDiffusionModel:
         )
         return shark_clip
 
+    # TODO: add this to get_vae with condition on encode/decode
+    def get_vae_encode(self, model_name="vae_encode", extra_args=[]):
+        class VaeEncodeModel(torch.nn.Module):
+            def __init__(self, model_id=self.model_id, base_vae=self.base_vae):
+                super().__init__()
+                self.vae = AutoencoderKL.from_pretrained(
+                    model_id,
+                    subfolder="vae",
+                )
+                self.base_vae = base_vae
+
+            def forward(self, input):
+                latent_dists = self.vae.encode(input_arr)["latent_dist"]
+                latent_samples = latent_dists.sample()
+                return latent_samples * 0.18215
+
+        vae_encode = VaeEncodeModel()
+        inputs = tuple(self.inputs["vae_encode"])
+        is_f16 = True if self.precision == "fp16" else False
+        vae_name = "vae_encode"
+        shark_vae_encode = compile_through_fx(
+            vae_encode,
+            inputs,
+            is_f16=is_f16,
+            model_name=vae_name + self.model_name,
+            extra_args=get_opt_flags("vae_encode", precision=self.precision),
+        )
+        return shark_vae_encode
+
+
     def __call__(self):
         from utils import get_vmfb_path_name
         from stable_args import args
@@ -221,8 +252,10 @@ class SharkifyStableDiffusionModel:
                 self.batch_size,
             )
             try:
-                compiled_unet = self.get_unet()
+                # reordered for testing
+                compiled_vae_encode = self.get_vae_encode()
                 compiled_vae = self.get_vae()
+                compiled_unet = self.get_unet()
                 compiled_clip = self.get_clip()
             except Exception as e:
                 if args.enable_stack_trace:
@@ -245,7 +278,7 @@ class SharkifyStableDiffusionModel:
             # the knowledge of base model id accordingly into `args.hf_model_id`.
             if args.ckpt_loc != "":
                 args.hf_model_id = model_id
-            return compiled_clip, compiled_unet, compiled_vae
+            return compiled_clip, compiled_unet, compiled_vae, compiled_vae_encode
         sys.exit(
             "Cannot compile the model. Please use `enable_stack_trace` and create an issue at https://github.com/nod-ai/SHARK/issues"
         )
