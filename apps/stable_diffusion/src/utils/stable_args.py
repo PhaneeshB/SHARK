@@ -30,6 +30,12 @@ p.add_argument(
 )
 
 p.add_argument(
+    "--img_path",
+    type=str,
+    help="Path to the image input for img2img/inpaint",
+)
+
+p.add_argument(
     "--steps",
     type=int,
     default=50,

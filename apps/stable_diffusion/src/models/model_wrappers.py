@@ -27,15 +27,19 @@ def replace_shape_str(shape, max_len, width, height, batch_size):
         elif shape[i] == "width":
             new_shape.append(width)
         elif isinstance(shape[i], str):
+            mul_val = int(shape[i].split("*")[0])
             if "batch_size" in shape[i]:
-                mul_val = int(shape[i].split("*")[0])
                 new_shape.append(batch_size * mul_val)
+            elif "height" in shape[i]:
+                new_shape.append(height * mul_val)
+            elif "width" in shape[i]:
+                new_shape.append(width * mul_val)
         else:
             new_shape.append(shape[i])
     return new_shape
 
 
-# Get the input info for various models i.e. "unet", "clip", "vae".
+# Get the input info for various models i.e. "unet", "clip", "vae", "vae_encode".
 def get_input_info(model_info, max_len, width, height, batch_size):
     dtype_config = {"f32": torch.float32, "i64": torch.int64}
     input_map = defaultdict(list)
@@ -120,6 +124,32 @@ class SharkifyStableDiffusionModel:
             sys.exit("width should be greater than 384 and multiple of 8")
         if not (height % 8 == 0 and height >= 384):
             sys.exit("height should be greater than 384 and multiple of 8")
+
+    def get_vae_encode(self):
+        class VaeEncodeModel(torch.nn.Module):
+            def __init__(self, model_id=self.model_id):
+                super().__init__()
+                self.vae = AutoencoderKL.from_pretrained(
+                    model_id,
+                    subfolder="vae",
+                )
+
+            def forward(self, input):
+                latents = self.vae.encode(input).latent_dist.sample()
+                return 0.18215 * latents
+
+        vae_encode = VaeEncodeModel()
+        inputs = tuple(self.inputs["vae_encode"])
+        is_f16 = True if self.precision == "fp16" else False
+        shark_vae_encode = compile_through_fx(
+            vae_encode,
+            inputs,
+            is_f16=is_f16,
+            use_tuned=self.use_tuned,
+            model_name="vae_encode" + self.model_name,
+            extra_args=get_opt_flags("vae", precision=self.precision),
+        )
+        return shark_vae_encode
 
     def get_vae(self):
         class VaeModel(torch.nn.Module):
@@ -238,6 +268,7 @@ class SharkifyStableDiffusionModel:
             )
             try:
                 compiled_unet = self.get_unet()
+                compiled_vae_encode = self.get_vae_encode()
                 compiled_vae = self.get_vae()
                 compiled_clip = self.get_clip()
             except Exception as e:
@@ -251,7 +282,12 @@ class SharkifyStableDiffusionModel:
             # the knowledge of base model id accordingly into `args.hf_model_id`.
             if args.ckpt_loc != "":
                 args.hf_model_id = model_id
-            return compiled_clip, compiled_unet, compiled_vae
+            return (
+                compiled_clip,
+                compiled_unet,
+                compiled_vae_encode,
+                compiled_vae,
+            )
         sys.exit(
             "Cannot compile the model. Please re-run the command with `--enable_stack_trace` flag and create an issue with detailed log at https://github.com/nod-ai/SHARK/issues"
         )

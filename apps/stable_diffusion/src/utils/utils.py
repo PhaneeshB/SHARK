@@ -282,6 +282,7 @@ def set_init_device_flags():
         "stabilityai/stable-diffusion-2-1",
         "stabilityai/stable-diffusion-2-1-base",
         "CompVis/stable-diffusion-v1-4",
+        "runwayml/stable-diffusion-inpainting",
     ]:
         args.import_mlir = True
 
@@ -414,7 +415,12 @@ def load_vmfb(vmfb_path, model, precision):
 # This utility returns vmfbs of Clip, Unet and Vae, in case all three of them
 # are present; deletes them otherwise.
 def fetch_or_delete_vmfbs(basic_model_name, use_base_vae, precision="fp32"):
-    model_name = ["clip", "unet", "base_vae" if use_base_vae else "vae"]
+    model_name = [
+        "clip",
+        "unet",
+        "vae_encode",
+        "base_vae" if use_base_vae else "vae",
+    ]
     vmfb_path = [
         get_vmfb_path_name(model + basic_model_name)[0] for model in model_name
     ]
