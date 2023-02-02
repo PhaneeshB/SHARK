@@ -40,7 +40,7 @@
         "vae_encode": {
             "latents" : {
                 "shape" : [
-                    "1*batch_size","height","width",3
+                    "1*batch_size",3,"height","width"
                 ],
                 "dtype":"f32"
             }
@@ -96,7 +96,7 @@
         "vae_encode": {
             "latents" : {
                 "shape" : [
-                    "1*batch_size","height","width", 3
+                    "1*batch_size",3,"height","width"
                 ],
                 "dtype":"f32"
             }

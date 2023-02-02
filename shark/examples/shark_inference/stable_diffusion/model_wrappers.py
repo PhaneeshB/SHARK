@@ -215,7 +215,7 @@ class SharkifyStableDiffusionModel:
                 self.base_vae = base_vae
 
             def forward(self, input):
-                latent_dists = self.vae.encode(input_arr)["latent_dist"]
+                latent_dists = self.vae.encode(input)["latent_dist"]
                 latent_samples = latent_dists.sample()
                 return latent_samples * 0.18215
 

@@ -199,11 +199,12 @@ if __name__ == "__main__":
                 init_img = init_img.resize((768, 768))
             else:
                 init_img = init_img.resize((512, 512))
-            input_arr = np.stack([np.array(i) for i in init_img], axis=0)
+            # may need stacking for inpaint?
+            input_arr = np.stack([np.array(i) for i in (init_img,)], axis=0)
             input_arr = input_arr / 255.0
             input_arr = torch.from_numpy(input_arr).permute(0, 3, 1, 2).to(dtype)
             input_arr = 2 * (input_arr - 0.5)
-            latents = vae_encode("forward", (init_img,))
+            latents = vae_encode("forward", (input_arr,))
             latents = torch.from_numpy(latents)
 
         if run == 0:
