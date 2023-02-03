@@ -207,7 +207,7 @@ if __name__ == "__main__":
             input_arr = 2 * (input_arr - 0.5)
             latents = vae_encode("forward", (input_arr,))
             print(f"img latents shape : {latents.shape}")
-            latents = torch.from_numpy(latents)
+            latents = torch.from_numpy(latents).to(dtype)
 
         if run == 0:
             # Warmup phase to improve performance.
