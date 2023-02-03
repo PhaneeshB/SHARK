@@ -137,7 +137,7 @@ if __name__ == "__main__":
             use_base_vae=args.use_base_vae,
             use_tuned=args.use_tuned,
         )
-        clip, unet, vae = mlir_import()
+        clip, unet, vae, vae_encode = mlir_import()
 
     if args.dump_isa:
         dump_isas(args.dispatch_benchmarks_dir)
@@ -199,12 +199,14 @@ if __name__ == "__main__":
                 init_img = init_img.resize((768, 768))
             else:
                 init_img = init_img.resize((512, 512))
-            # may need stacking for inpaint?
+            # may need stacking for inpaint (mask and image)?
+            print(f"init image size : {init_img.size}")
             input_arr = np.stack([np.array(i) for i in (init_img,)], axis=0)
             input_arr = input_arr / 255.0
             input_arr = torch.from_numpy(input_arr).permute(0, 3, 1, 2).to(dtype)
             input_arr = 2 * (input_arr - 0.5)
             latents = vae_encode("forward", (input_arr,))
+            print(f"img latents shape : {latents.shape}")
             latents = torch.from_numpy(latents)
 
         if run == 0:

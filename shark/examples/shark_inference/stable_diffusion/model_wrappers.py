@@ -37,8 +37,12 @@ def get_input_info(model_info, max_len, width, height, batch_size):
             dtype = dtype_config[model_info[k][inp]["dtype"]]
             tensor = None
             if isinstance(shape, list):
+                # used for all other model inputs as height // 8 and width // 8 execpt vae_encode which needs actual width height of image as input dims for img2img
+                h, w = height, width
+                if k == "vae_encode" and inp == "latents":
+                    h, w = height * 8, width * 8
                 clean_shape = replace_shape_str(
-                    shape, max_len, width, height, batch_size
+                    shape, max_len, w, h, batch_size
                 )
                 if dtype == torch.int64:
                     tensor = torch.randint(1, 3, tuple(clean_shape))
@@ -221,6 +225,7 @@ class SharkifyStableDiffusionModel:
 
         vae_encode = VaeEncodeModel()
         inputs = tuple(self.inputs["vae_encode"])
+        print(f"input shape {inputs[0].shape}\n{inputs}")
         is_f16 = True if self.precision == "fp16" else False
         vae_name = "vae_encode"
         shark_vae_encode = compile_through_fx(
