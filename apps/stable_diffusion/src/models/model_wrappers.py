@@ -259,6 +259,8 @@ class SharkifyStableDiffusionModel:
             ), "checkpoint files supported can be any of [.ckpt, .safetensors] type"
             preprocessCKPT(self.custom_weights)
         for model_id in base_models:
+            if "runway" not in model_id:
+                continue
             self.inputs = get_input_info(
                 base_models[model_id],
                 self.max_len,

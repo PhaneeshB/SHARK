@@ -114,8 +114,6 @@ class StableDiffusionPipeline:
         total_timesteps,
         dtype,
         cpu_scheduling,
-        mask=None,
-        masked_image_latents=None,
         return_all_latents=False,
     ):
         step_time_sum = 0
@@ -126,15 +124,6 @@ class StableDiffusionPipeline:
             step_start_time = time.time()
             timestep = torch.tensor([t]).to(dtype).detach().numpy()
             latent_model_input = self.scheduler.scale_model_input(latents, t)
-            if mask is not None and masked_image_latents is not None:
-                latent_model_input = torch.cat(
-                    [
-                        torch.from_numpy(np.asarray(latent_model_input)),
-                        mask,
-                        masked_image_latents,
-                    ],
-                    dim=1,
-                ).to(dtype)
             if cpu_scheduling:
                 latent_model_input = latent_model_input.detach().numpy()
 
