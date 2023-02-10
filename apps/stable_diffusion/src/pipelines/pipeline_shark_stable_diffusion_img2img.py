@@ -50,6 +50,7 @@ class Image2ImagePipeline(StableDiffusionPipeline):
         width,
         generator,
         num_inference_steps,
+        strength,
         dtype,
     ):
         # Pre process image -> get image encoded -> process latents
@@ -69,9 +70,15 @@ class Image2ImagePipeline(StableDiffusionPipeline):
 
         # set scheduler steps
         self.scheduler.set_timesteps(num_inference_steps)
+        init_timestep = min(int(num_inference_steps * strength), num_inference_steps)
+        t_start = max(num_inference_steps - init_timestep, 0)
+        timesteps = self.scheduler.timesteps[t_start:]
 
         # add noise to data
-        latents = latents * self.scheduler.init_noise_sigma
+        noise = torch.randn(latents.shape, generator=generator, dtype=dtype)
+
+        # get latents
+        latents = self.scheduler.add_noise(latents, noise, timesteps[0])
 
         return latents
 
@@ -93,6 +100,7 @@ class Image2ImagePipeline(StableDiffusionPipeline):
         height,
         width,
         num_inference_steps,
+        strength,
         guidance_scale,
         seed,
         max_length,
@@ -131,6 +139,7 @@ class Image2ImagePipeline(StableDiffusionPipeline):
             width=width,
             generator=generator,
             num_inference_steps=num_inference_steps,
+            strength=strength,
             dtype=dtype,
         )
 
