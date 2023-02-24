@@ -198,7 +198,7 @@ if __name__ == "__main__":
     cpu_scheduling = not args.scheduler.startswith("Shark")
     set_init_device_flags()
     schedulers = get_schedulers(args.hf_model_id)
-    if args.scheduler != "PNDM":
+    if args.use_stencil is None and args.scheduler != "PNDM":
         if "Shark" in args.scheduler:
             print(
                 f"SharkEulerDiscrete scheduler not supported. Switching to PNDM scheduler"
