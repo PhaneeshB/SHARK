@@ -149,7 +149,7 @@ class Text2ImagePipeline(StableDiffusionPipeline):
         #       3. Supply `controlnet_img`.
         from PIL import Image
 
-        controlnet_img = Image.open("/home/abhishek/cn_1.png")
+        controlnet_img = Image.open("/home/phaneesh/SHARK/cn_1.png")
         controlnet_hint = self.hint_canny(controlnet_img)
         controlnet_hint = self.controlnet_hint_conversion(
             controlnet_hint, height, width, num_images_per_prompt=1

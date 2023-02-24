@@ -97,6 +97,12 @@ p.add_argument(
     default=0.8,
     help="the strength of change applied on the given input image for img2img",
 )
+
+p.add_argument(
+    "--use_stencil",
+    choices=['canny'],
+    help="Enable the stencil feature",
+)
 ##############################################################################
 ### Model Config and Usage Params
 ##############################################################################

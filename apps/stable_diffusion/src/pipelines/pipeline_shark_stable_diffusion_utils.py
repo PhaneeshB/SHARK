@@ -47,6 +47,7 @@ class StableDiffusionPipeline:
             DPMSolverMultistepScheduler,
             SharkEulerDiscreteScheduler,
         ],
+        # controlnet: SharkInference = None,
     ):
         self.vae = vae
         self.text_encoder = text_encoder
@@ -56,11 +57,13 @@ class StableDiffusionPipeline:
         # TODO: Implement using logging python utility.
         self.log = ""
         # TODO: Make this dynamic like other models which'll be passed to StableDiffusionPipeline.
-        from diffusers import UNet2DConditionModel
 
-        self.controlnet = UNet2DConditionModel.from_pretrained(
-            "/home/abhishek/weights/canny_weight", subfolder="controlnet"
-        )
+        # from diffusers import UNet2DConditionModel
+        # self.controlnet = UNet2DConditionModel.from_pretrained(
+        #     "/home/abhishek/weights/canny_weight", subfolder="controlnet"
+        # )
+
+        # self.controlnet = controlnet
 
     def encode_prompts(self, prompts, neg_prompts, max_length):
         # Tokenize text and get embeddings
@@ -156,7 +159,7 @@ class StableDiffusionPipeline:
                     ).to(dtype)
                 else:
                     latent_model_input_1 = latent_model_input
-                control = self.controlnet(
+                control = self.vae_encode(
                     latent_model_input_1,
                     timestep,
                     encoder_hidden_states=text_embeddings,
@@ -323,6 +326,7 @@ class StableDiffusionPipeline:
         use_base_vae: bool,
         use_tuned: bool,
         low_cpu_mem_usage: bool = False,
+        use_stencil: bool = False,
     ):
         if import_mlir:
             mlir_import = SharkifyStableDiffusionModel(
@@ -339,14 +343,21 @@ class StableDiffusionPipeline:
                 low_cpu_mem_usage=low_cpu_mem_usage,
             )
             if cls.__name__ in ["Image2ImagePipeline", "InpaintPipeline"]:
-                clip, unet, vae, vae_encode = mlir_import()
-                return cls(
-                    vae_encode, vae, clip, get_tokenizer(), unet, scheduler
-                )
+                if use_stencil:
+                    clip, unet, vae, controlnet = mlir_import()
+                    return cls(
+                        controlnet, vae, clip, get_tokenizer(), unet, scheduler
+                    )    
+                else: 
+                    clip, unet, vae, vae_encode = mlir_import()
+                    return cls(
+                        vae_encode, vae, clip, get_tokenizer(), unet, scheduler
+                    )
             clip, unet, vae = mlir_import()
             return cls(vae, clip, get_tokenizer(), unet, scheduler)
         try:
             if cls.__name__ in ["Image2ImagePipeline", "InpaintPipeline"]:
+                # TODO: Add stencilSD to shark tank
                 return cls(
                     get_vae_encode(),
                     get_vae(),
@@ -374,9 +385,15 @@ class StableDiffusionPipeline:
                 low_cpu_mem_usage=low_cpu_mem_usage,
             )
             if cls.__name__ in ["Image2ImagePipeline", "InpaintPipeline"]:
-                clip, unet, vae, vae_encode = mlir_import()
-                return cls(
-                    vae_encode, vae, clip, get_tokenizer(), unet, scheduler
-                )
+                if use_stencil:
+                    clip, unet, vae, controlnet = mlir_import()
+                    return cls(
+                        controlnet, vae, clip, get_tokenizer(), unet, scheduler
+                    )    
+                else: 
+                    clip, unet, vae, vae_encode = mlir_import()
+                    return cls(
+                        vae_encode, vae, clip, get_tokenizer(), unet, scheduler
+                    )
             clip, unet, vae = mlir_import()
             return cls(vae, clip, get_tokenizer(), unet, scheduler)
