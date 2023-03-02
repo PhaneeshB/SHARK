@@ -177,7 +177,7 @@ class StableDiffusionPipeline:
             noise_pred = self.unet(
                 "forward",
                 (
-                    latent_model_input,
+                    latent_model_input_1,
                     timestep,
                     text_embeddings_numpy,
                     guidance_scale,

@@ -88,7 +88,7 @@ class StencilPipeline(StableDiffusionPipeline):
     ):
         # Control Embedding check & conversion
         # TODO: 1. Change `num_images_per_prompt`.
-        controlnet_hint = controlnet_hint_conversion(
+        controlnet_hint_og, controlnet_hint = controlnet_hint_conversion(
             image, use_stencil, height, width, dtype, num_images_per_prompt=1
         )
         # prompts and negative prompts must be a list.
@@ -146,5 +146,6 @@ class StencilPipeline(StableDiffusionPipeline):
                 cpu_scheduling=cpu_scheduling,
             )
             all_imgs.extend(imgs)
+        all_imgs.append(controlnet_hint_og)
 
         return all_imgs

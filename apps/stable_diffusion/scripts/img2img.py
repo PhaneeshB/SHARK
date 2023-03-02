@@ -347,5 +347,8 @@ if __name__ == "__main__":
     text_output += f"\nTotal image generation time: {total_time:.4f}sec"
 
     extra_info = {"STRENGTH": args.strength}
-    save_output_img(generated_imgs[0], seed, extra_info)
+    if use_stencil:
+        save_output_img(generated_imgs[0], seed, extra_info, stencil=generated_imgs[-1])
+    else:
+        save_output_img(generated_imgs[0], seed, extra_info)
     print(text_output)

@@ -110,10 +110,10 @@ def controlnet_hint_conversion(
             controlnet_hint = hint_canny(image)
         case _:
             return None
-    controlnet_hint = controlnet_hint_shaping(
+    controlnet_hint_res = controlnet_hint_shaping(
         controlnet_hint, height, width, dtype, num_images_per_prompt
     )
-    return controlnet_hint
+    return controlnet_hint, controlnet_hint_res
 
 
 stencil_to_model_id_map = {

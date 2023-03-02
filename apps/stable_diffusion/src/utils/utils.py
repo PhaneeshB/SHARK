@@ -2,7 +2,7 @@ import os
 import gc
 import json
 import re
-from PIL import PngImagePlugin
+from PIL import PngImagePlugin, Image
 from datetime import datetime as dt
 from csv import DictWriter
 from pathlib import Path
@@ -544,7 +544,7 @@ def clear_all():
 
 
 # save output images and the inputs corresponding to it.
-def save_output_img(output_img, img_seed, extra_info={}):
+def save_output_img(output_img, img_seed, extra_info={}, stencil=None):
     output_path = args.output_dir if args.output_dir else Path.cwd()
     generated_imgs_path = Path(
         output_path, "generated_imgs", dt.now().strftime("%Y%m%d")
@@ -564,6 +564,10 @@ def save_output_img(output_img, img_seed, extra_info={}):
     if args.output_img_format == "jpg":
         out_img_path = Path(generated_imgs_path, f"{out_img_name}.jpg")
         output_img.save(out_img_path, quality=95, subsampling=0)
+        if stencil is not None:
+            out_img_stencil_path = Path(generated_imgs_path, f"{out_img_name}_stencil.jpg")
+            stencil_img = Image.fromarray(stencil.astype('uint8'), 'RGB')
+            stencil_img.save(out_img_stencil_path, quality=95, subsampling=0)
     else:
         out_img_path = Path(generated_imgs_path, f"{out_img_name}.png")
         pngInfo = PngImagePlugin.PngInfo()
@@ -575,6 +579,10 @@ def save_output_img(output_img, img_seed, extra_info={}):
             )
 
         output_img.save(out_img_path, "PNG", pnginfo=pngInfo)
+        if stencil is not None:
+            out_img_stencil_path = Path(generated_imgs_path, f"{out_img_name}_stencil.png")
+            stencil_img = Image.fromarray(stencil.astype('uint8'), 'RGB')
+            stencil_img.save(out_img_stencil_path, "PNG", pnginfo=pngInfo)
 
         if args.output_img_format not in ["png", "jpg"]:
             print(
