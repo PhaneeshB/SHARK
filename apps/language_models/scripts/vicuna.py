@@ -1,9 +1,3 @@
-import sys
-import warnings
-
-warnings.filterwarnings("ignore")
-sys.path.insert(0, "D:\S\SB\I\python_packages\iree_compiler")
-sys.path.insert(0, "D:\S\SB\I\python_packages\iree_runtime")
 import torch
 import torch_mlir
 from transformers import AutoTokenizer, AutoModelForCausalLM
@@ -12,7 +6,6 @@ from torch._decomp import get_decompositions
 from typing import List
 from io import BytesIO
 from pathlib import Path
-from shark.shark_downloader import download_public_file
 from shark.shark_importer import transform_fx as transform_fx_
 import re
 from shark.shark_inference import SharkInference
@@ -405,6 +398,11 @@ def get_model_and_tokenizer(path="TheBloke/vicuna-7B-1.1-HF"):
     tokenizer = AutoTokenizer.from_pretrained(path, use_fast=False)
     return vicuna_model, tokenizer
 
+def get_tokenizer(path="TheBloke/vicuna-7B-1.1-HF"):
+    kwargs = {"torch_dtype": torch.float}
+    vicuna_model = AutoModelForCausalLM.from_pretrained(path, **kwargs)
+    tokenizer = AutoTokenizer.from_pretrained(path, use_fast=False)
+    return vicuna_model, tokenizer
 
 def compile_to_vmfb(inputs, layers, is_first=True):
     mlirs, modules = [], []
@@ -608,6 +606,63 @@ def get_sharded_model():
     return sharded_model
 
 
+def generate(sharded_model, tokenizer, past_key_values, prompt, max_response_len):
+    for iteration in range(max_response_len):
+        original_input_ids = input_ids
+        input_id_len = len(input_ids)
+        input_ids = torch.tensor(input_ids)
+        input_ids = input_ids.reshape([1, input_id_len])
+
+        if iteration == 0:
+            output = sharded_model.forward(input_ids, is_first=True)
+        else:
+            output = sharded_model.forward(
+                    input_ids, past_key_values=past_key_values, is_first=False
+                )
+        logits = output["logits"]
+        past_key_values = output["past_key_values"]
+        new_token = int(torch.argmax(logits[:, -1, :], dim=1)[0])
+        if new_token == 2:
+            break
+        new_sentence += [new_token]
+        tokens.append(new_token)
+        original_input_ids.append(new_token)
+        input_ids = [new_token]
+
+    for i in range(len(tokens)):
+        if type(tokens[i]) != int:
+            tokens[i] = int(tokens[i][0])
+    return new_sentence
+
+def generate_new_token(shark_model, tokenizer, params):
+
+    #TODO : Add warnings and exits for improper params
+    input_ids = params['input_ids']
+    iteration = params['iteration']
+    past_key_values = params['past_key_values']
+
+    input_id_len = len(input_ids)
+    input_ids = torch.tensor(input_ids)
+    input_ids = input_ids.reshape([1, input_id_len])
+
+    if iteration == 0:
+        output = shark_model.forward(input_ids, is_first=True)
+    else:
+        output = shark_model.forward(
+                    input_ids, past_key_values=past_key_values, is_first=False
+                )
+    logits = output["logits"]
+    past_key_values = output["past_key_values"]
+    new_token = int(torch.argmax(logits[:, -1, :], dim=1)[0])
+    detok = tokenizer.decode(new_token)
+
+    ret_dict = {
+        'new_token' : new_token,
+        'detok' : detok,
+        'past_key_values' : past_key_values
+    }
+    return ret_dict
+
 if __name__ == "__main__":
     prompt_history = "A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions.\n"
     prologue_prompt = "ASSISTANT:\n"
@@ -621,31 +676,30 @@ if __name__ == "__main__":
             prompt_history + "USER:\n" + user_prompt + prologue_prompt
         )
         prompt = prompt_history.strip()
+        max_response_len = 1000
         input_ids = tokenizer(prompt).input_ids
         tokens = input_ids
         prompt = print("Robot:", end=" ")
         new_sentence = []
-        max_response_len = 1000
+        past_key_values = None # for iteration 0
         for iteration in range(max_response_len):
             original_input_ids = input_ids
-            input_id_len = len(input_ids)
-            input_ids = torch.tensor(input_ids)
-            input_ids = input_ids.reshape([1, input_id_len])
 
-            if iteration == 0:
-                output = sharded_model.forward(input_ids, is_first=True)
-            else:
-                output = sharded_model.forward(
-                    input_ids, past_key_values=past_key_values, is_first=False
-                )
-            logits = output["logits"]
-            past_key_values = output["past_key_values"]
-            new_token = int(torch.argmax(logits[:, -1, :], dim=1)[0])
+            params = {
+                'past_key_values':past_key_values, 
+                'input_ids':input_ids,
+                'iteration':iteration,
+                }
+            generated_token_op = generate_new_token(sharded_model, tokenizer, params)
+            # extract result from generate new token
+            new_token = generated_token_op['new_token']
+            detok = generated_token_op['detok']
+            past_key_values = generated_token_op['past_key_values']
+
             if new_token == 2:
                 break
             new_sentence += [new_token]
             tokens.append(new_token)
-            detok = tokenizer.decode(new_token)
             if detok == "<0x0A>":
                 print("\n", end="", flush=True)
             else:

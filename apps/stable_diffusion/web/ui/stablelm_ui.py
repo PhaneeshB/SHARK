@@ -1,13 +1,6 @@
 import gradio as gr
 import torch
 import os
-from apps.language_models.scripts.stablelm import (
-    compile_stableLM,
-    StopOnTokens,
-    generate,
-    get_tokenizer,
-    StableLMModel,
-)
 from transformers import (
     AutoModelForCausalLM,
     TextIteratorStreamer,
@@ -44,7 +37,7 @@ def chat(curr_system_message, history, model):
     global sharded_model
     global past_key_values
     if "vicuna" in model:
-        from apps.language_models.scripts.sharded_vicuna_fp32 import (
+        from apps.language_models.scripts.vicuna import (
             tokenizer,
             get_sharded_model,
         )
@@ -97,6 +90,14 @@ def chat(curr_system_message, history, model):
         print(new_sentence)
         return history
 
+    # else : Modle => StableLM
+    from apps.language_models.scripts.stablelm import (
+        compile_stableLM,
+        StopOnTokens,
+        generate,
+        get_tokenizer,
+        StableLMModel,
+    )
     global sharkModel
     print("In chat")
     if sharkModel == 0:
@@ -133,14 +134,7 @@ def chat(curr_system_message, history, model):
     )
     generate_kwargs = dict(
         new_text=messages,
-        streamer=streamer,
         max_new_tokens=512,
-        do_sample=True,
-        top_p=0.95,
-        top_k=1000,
-        temperature=1.0,
-        num_beams=1,
-        stopping_criteria=StoppingCriteriaList([stop]),
         sharkStableLM=sharkModel,
     )
     words_list = generate(**generate_kwargs)

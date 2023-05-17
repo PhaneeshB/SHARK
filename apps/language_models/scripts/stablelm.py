@@ -251,53 +251,59 @@ def get_tokenizer():
 # sharkStableLM = compile_stableLM(None, tuple([input_ids, attention_mask]), "stableLM_linalg_f32_seqLen256", "/home/shark/vivek/stableLM_shark_f32_seqLen256")
 def generate(
     new_text,
-    streamer,
     max_new_tokens,
-    do_sample,
-    top_p,
-    top_k,
-    temperature,
-    num_beams,
-    stopping_criteria,
     sharkStableLM,
-    tok=None,
-    input_ids=torch.randint(3, (1, 256)),
-    attention_mask=torch.randint(3, (1, 256)),
+    tokenizer=None,
 ):
-    if tok == None:
-        tok = get_tokenizer
+    if tokenizer == None:
+        tokenizer = get_tokenizer
     # Construct the input message string for the model by concatenating the current system message and conversation history
     # Tokenize the messages string
     # sharkStableLM = compile_stableLM(None, tuple([input_ids, attention_mask]), "stableLM_linalg_f32_seqLen256", "/home/shark/vivek/stableLM_shark_f32_seqLen256")
     words_list = []
     for i in range(max_new_tokens):
-        numWords = len(new_text.split())
+        # numWords = len(new_text.split())
         # if(numWords>220):
         #  break
-        model_inputs = tok(
+        params = {
+            'new_text' : new_text,
+        }
+        generated_token_op = generate_new_token(sharkStableLM, tokenizer, params)
+        detok = generated_token_op['detok']
+        stop_generation = generated_token_op['stop_generation']
+        if stop_generation:
+            break
+        print(detok, end="", flush=True)
+        words_list.append(detok)
+        if detok == "":
+            break
+        new_text = new_text + detok
+    return words_list
+
+def generate_new_token(shark_model, tokenizer, params):
+    new_text = params['new_text']
+    model_inputs = tokenizer(
             [new_text],
             padding="max_length",
             max_length=MAX_SEQUENCE_LENGTH,
             truncation=True,
             return_tensors="pt",
         )
-        sum_attentionmask = torch.sum(model_inputs.attention_mask)
+    sum_attentionmask = torch.sum(model_inputs.attention_mask)
         # sharkStableLM = compile_stableLM(None, tuple([input_ids, attention_mask]), "stableLM_linalg_f32_seqLen256", "/home/shark/vivek/stableLM_shark_f32_seqLen256")
-        output = sharkStableLM(
+    output = shark_model(
             "forward", [model_inputs.input_ids, model_inputs.attention_mask]
         )
-        output = torch.from_numpy(output)
-        next_toks = torch.topk(output, 1)
-        if shouldStop(next_toks.indices):
-            break
-        #        streamer.put(next_toks.indices[0][int(sum_attentionmask)-1])
-        new_word = tok.decode(
-            next_toks.indices[0][int(sum_attentionmask) - 1],
-            skip_special_tokens=True,
-        )
-        print(new_word, end="", flush=True)
-        words_list.append(new_word)
-        if new_word == "":
-            break
-        new_text = new_text + new_word
-    return words_list
+    output = torch.from_numpy(output)
+    next_toks = torch.topk(output, 1)
+    stop_generation = False
+    if shouldStop(next_toks.indices):
+        stop_generation = True
+    new_token = next_toks.indices[0][int(sum_attentionmask) - 1]
+    detok = tokenizer.decode(new_token, skip_special_tokens=True,)
+    ret_dict = {
+        'new_token' : new_token,
+        'detok' : detok,
+        'stop_generation' : stop_generation,
+    }
+    return ret_dict
