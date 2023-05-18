@@ -41,11 +41,12 @@ past_key_values = None
 
 
 def chat(curr_system_message, history, model):
+    print(f"In chat for {model}")
     global sharded_model
     global past_key_values
     if "vicuna" in model:
-        from apps.language_models.scripts.sharded_vicuna_fp32 import (
-            tokenizer,
+        from apps.language_models.scripts.vicuna import (
+            get_tokenizer,
             get_sharded_model,
         )
 
@@ -59,6 +60,7 @@ def chat(curr_system_message, history, model):
                 for item in history
             ]
         )
+        tokenizer = get_tokenizer()
         prompt = messages.strip()
         print("prompt = ", prompt)
         input_ids = tokenizer(prompt).input_ids
@@ -98,7 +100,6 @@ def chat(curr_system_message, history, model):
         return history
 
     global sharkModel
-    print("In chat")
     if sharkModel == 0:
         tok = get_tokenizer()
         # sharkModel = compile_stableLM(None, tuple([input_ids, attention_mask]), "stableLM_linalg_f32_seqLen256", "/home/shark/disk/phaneesh/stablelm_3b_f32_cuda_2048_newflags.vmfb")

@@ -406,6 +406,10 @@ def get_model_and_tokenizer(path="TheBloke/vicuna-7B-1.1-HF"):
     tokenizer = AutoTokenizer.from_pretrained(path, use_fast=False)
     return vicuna_model, tokenizer
 
+def get_tokenizer(path="TheBloke/vicuna-7B-1.1-HF"):
+    tokenizer = AutoTokenizer.from_pretrained(path, use_fast=False)
+    return tokenizer
+
 
 def compile_to_vmfb(inputs, layers, is_first=True):
     mlirs, modules = [], []
