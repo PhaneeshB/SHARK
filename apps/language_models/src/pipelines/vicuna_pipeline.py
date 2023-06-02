@@ -8,7 +8,7 @@ from io import BytesIO
 from pathlib import Path
 from shark.shark_inference import SharkInference
 from transformers import AutoTokenizer, AutoModelForCausalLM
-
+from shark.shark_downloader import download_public_file
 import re
 import torch
 import torch_mlir
@@ -45,7 +45,7 @@ class Vicuna(SharkLLMBase):
         return vicuna_model
 
     def compile_first_vicuna(self):
-        vmfb_path = Path(self.model_name + ".vmfb")
+        vmfb_path = Path("first_vicuna.vmfb")
         if vmfb_path.exists():
             shark_module = SharkInference(
                 None, device=self.device, mlir_dialect="tm_tensor"
@@ -53,7 +53,7 @@ class Vicuna(SharkLLMBase):
             shark_module.load_module(vmfb_path)
             # self.shark_module = shark_module
             return shark_module
-        mlir_path = Path(self.model_name + ".mlir")
+        mlir_path = Path("first_vicuna.mlir")
         print(
             f"[DEBUG] mlir path { mlir_path} {'exists' if mlir_path.exists() else 'does not exist'}"
         )
@@ -61,72 +61,84 @@ class Vicuna(SharkLLMBase):
             with open(mlir_path, "rb") as f:
                 bytecode = f.read()
         else:
-            compilation_prompt = "".join(["0" for _ in range(17)])
-            compilation_input_ids = self.tokenizer(
-                compilation_prompt
-            ).input_ids
-            compilation_input_ids = torch.tensor(
-                compilation_input_ids
-            ).reshape([1, 19])
-            firstVicunaCompileInput = (compilation_input_ids,)
-            model = FirstVicuna(self.hf_model_path)
+            try:
+                download_public_file(
+                    "gs://shark_tank/elias/first_vicuna.mlir",
+                    mlir_path,
+                    single_file=True,
+                )
+            except:
+                print("Could not download the mlir file. Generating locally")
 
-            ts_graph = get_torch_mlir_module_bytecode(
-                model, firstVicunaCompileInput
-            )
+                compilation_prompt = "".join(["0" for _ in range(17)])
+                compilation_input_ids = self.tokenizer(
+                    compilation_prompt
+                ).input_ids
+                compilation_input_ids = torch.tensor(
+                    compilation_input_ids
+                ).reshape([1, 19])
+                firstVicunaCompileInput = (compilation_input_ids,)
+                model = FirstVicuna(self.hf_model_path)
 
-            firstVicunaCompileInput = list(firstVicunaCompileInput)
-            firstVicunaCompileInput[0] = torch_mlir.TensorPlaceholder.like(
-                firstVicunaCompileInput[0], dynamic_axes=[1]
-            )
-            firstVicunaCompileInput = tuple(firstVicunaCompileInput)
-            module = torch_mlir.compile(
-                ts_graph,
-                [*firstVicunaCompileInput],
-                torch_mlir.OutputType.LINALG_ON_TENSORS,
-                use_tracing=False,
-                verbose=False,
-            )
+                ts_graph = get_torch_mlir_module_bytecode(
+                    model, firstVicunaCompileInput
+                )
 
-            def remove_constant_dim(line):
-                if "19x" in line:
-                    line = re.sub("19x", "?x", line)
-                    line = re.sub(
-                        "tensor.empty\(\)", "tensor.empty(%dim)", line
-                    )
-                if "tensor.empty" in line and "?x?" in line:
-                    line = re.sub(
-                        "tensor.empty\(%dim\)",
-                        "tensor.empty(%dim, %dim)",
-                        line,
-                    )
-                if "arith.cmpi" in line:
-                    line = re.sub("c19", "dim", line)
-                if " 19," in line:
-                    line = re.sub(" 19,", " %dim,", line)
-                return line
+                firstVicunaCompileInput = list(firstVicunaCompileInput)
+                firstVicunaCompileInput[0] = torch_mlir.TensorPlaceholder.like(
+                    firstVicunaCompileInput[0], dynamic_axes=[1]
+                )
+                firstVicunaCompileInput = tuple(firstVicunaCompileInput)
+                module = torch_mlir.compile(
+                    ts_graph,
+                    [*firstVicunaCompileInput],
+                    torch_mlir.OutputType.LINALG_ON_TENSORS,
+                    use_tracing=False,
+                    verbose=False,
+                )
 
-            module_str = str(module)
-            new_lines = []
+                def remove_constant_dim(line):
+                    if "19x" in line:
+                        line = re.sub("19x", "?x", line)
+                        line = re.sub(
+                            "tensor.empty\(\)", "tensor.empty(%dim)", line
+                        )
+                    if "tensor.empty" in line and "?x?" in line:
+                        line = re.sub(
+                            "tensor.empty\(%dim\)",
+                            "tensor.empty(%dim, %dim)",
+                            line,
+                        )
+                    if "arith.cmpi" in line:
+                        line = re.sub("c19", "dim", line)
+                    if " 19," in line:
+                        line = re.sub(" 19,", " %dim,", line)
+                    return line
 
-            for line in module_str.splitlines():
-                line = remove_constant_dim(line)
-                if "%0 = tensor.empty(%dim) : tensor<?xi64>" in line:
-                    new_lines.append(
+                module_str = str(module)
+                new_lines = []
+
+                for line in module_str.splitlines():
+                    line = remove_constant_dim(line)
+                    if "%0 = tensor.empty(%dim) : tensor<?xi64>" in line:
+                        new_lines.append(
+                            "%dim = tensor.dim %arg0, %c1 : tensor<1x?xi64>"
+                        )
+                    if (
                         "%dim = tensor.dim %arg0, %c1 : tensor<1x?xi64>"
-                    )
-                if "%dim = tensor.dim %arg0, %c1 : tensor<1x?xi64>" in line:
-                    continue
+                        in line
+                    ):
+                        continue
 
-                new_lines.append(line)
+                    new_lines.append(line)
 
-            module_str = "\n".join(new_lines)
-            bytecode = module_str.encode("UTF-8")
-            bytecode_stream = BytesIO(bytecode)
-            bytecode = bytecode_stream.read()
-            f_ = open(f"{self.model_name}.mlir", "wb")
-            f_.write(bytecode)
-            f_.close()
+                module_str = "\n".join(new_lines)
+                bytecode = module_str.encode("UTF-8")
+                bytecode_stream = BytesIO(bytecode)
+                bytecode = bytecode_stream.read()
+                f_ = open(mlir_path, "wb")
+                f_.write(bytecode)
+                f_.close()
 
         shark_module = SharkInference(
             mlir_module=bytecode, device=self.device, mlir_dialect="tm_tensor"
@@ -148,7 +160,7 @@ class Vicuna(SharkLLMBase):
         return shark_module
 
     def compile_second_vicuna(self):
-        vmfb_path = Path(self.model_name + ".vmfb")
+        vmfb_path = Path("second_vicuna.vmfb")
         if vmfb_path.exists():
             shark_module = SharkInference(
                 None, device=self.device, mlir_dialect="tm_tensor"
@@ -156,7 +168,7 @@ class Vicuna(SharkLLMBase):
             shark_module.load_module(vmfb_path)
             # self.shark_module = shark_module
             return shark_module
-        mlir_path = Path(self.model_name + ".mlir")
+        mlir_path = Path("second_vicuna.mlir")
         print(
             f"[DEBUG] mlir path { mlir_path} {'exists' if mlir_path.exists() else 'does not exist'}"
         )
@@ -164,94 +176,103 @@ class Vicuna(SharkLLMBase):
             with open(mlir_path, "rb") as f:
                 bytecode = f.read()
         else:
-            compilation_input_ids = torch.zeros([1, 1], dtype=torch.int64)
-            pkv = tuple(
-                (torch.zeros([1, 32, 19, 128], dtype=torch.float32))
-                for _ in range(64)
-            )
-            secondVicunaCompileInput = (compilation_input_ids,) + pkv
-            model = SecondVicuna(self.hf_model_path)
-            ts_graph = get_torch_mlir_module_bytecode(
-                model, secondVicunaCompileInput
-            )
-            secondVicunaCompileInput = list(secondVicunaCompileInput)
-            for i in range(len(secondVicunaCompileInput)):
-                if i != 0:
-                    secondVicunaCompileInput[
-                        i
-                    ] = torch_mlir.TensorPlaceholder.like(
-                        secondVicunaCompileInput[i], dynamic_axes=[2]
-                    )
-            secondVicunaCompileInput = tuple(secondVicunaCompileInput)
-            module = torch_mlir.compile(
-                ts_graph,
-                [*secondVicunaCompileInput],
-                torch_mlir.OutputType.LINALG_ON_TENSORS,
-                use_tracing=False,
-                verbose=False,
-            )
+            try:
+                download_public_file(
+                    "gs://shark_tank/elias/second_vicuna.mlir",
+                    mlir_path,
+                    single_file=True,
+                )
+            except:
+                print("Could not download the mlir file. Generating locally")
 
-            def remove_constant_dim(line):
-                if "c19_i64" in line:
-                    line = re.sub("c19_i64", "dim_i64", line)
-                if "19x" in line:
-                    line = re.sub("19x", "?x", line)
-                    line = re.sub(
-                        "tensor.empty\(\)", "tensor.empty(%dim)", line
-                    )
-                if "tensor.empty" in line and "?x?" in line:
-                    line = re.sub(
-                        "tensor.empty\(%dim\)",
-                        "tensor.empty(%dim, %dim)",
-                        line,
-                    )
-                if "arith.cmpi" in line:
-                    line = re.sub("c19", "dim", line)
-                if " 19," in line:
-                    line = re.sub(" 19,", " %dim,", line)
-                if "20x" in line:
-                    line = re.sub("20x", "?x", line)
-                    line = re.sub(
-                        "tensor.empty\(\)", "tensor.empty(%dimp1)", line
-                    )
-                if " 20," in line:
-                    line = re.sub(" 20,", " %dimp1,", line)
-                return line
+                compilation_input_ids = torch.zeros([1, 1], dtype=torch.int64)
+                pkv = tuple(
+                    (torch.zeros([1, 32, 19, 128], dtype=torch.float32))
+                    for _ in range(64)
+                )
+                secondVicunaCompileInput = (compilation_input_ids,) + pkv
+                model = SecondVicuna(self.hf_model_path)
+                ts_graph = get_torch_mlir_module_bytecode(
+                    model, secondVicunaCompileInput
+                )
+                secondVicunaCompileInput = list(secondVicunaCompileInput)
+                for i in range(len(secondVicunaCompileInput)):
+                    if i != 0:
+                        secondVicunaCompileInput[
+                            i
+                        ] = torch_mlir.TensorPlaceholder.like(
+                            secondVicunaCompileInput[i], dynamic_axes=[2]
+                        )
+                secondVicunaCompileInput = tuple(secondVicunaCompileInput)
+                module = torch_mlir.compile(
+                    ts_graph,
+                    [*secondVicunaCompileInput],
+                    torch_mlir.OutputType.LINALG_ON_TENSORS,
+                    use_tracing=False,
+                    verbose=False,
+                )
 
-            module_str = str(module)
-            new_lines = []
+                def remove_constant_dim(line):
+                    if "c19_i64" in line:
+                        line = re.sub("c19_i64", "dim_i64", line)
+                    if "19x" in line:
+                        line = re.sub("19x", "?x", line)
+                        line = re.sub(
+                            "tensor.empty\(\)", "tensor.empty(%dim)", line
+                        )
+                    if "tensor.empty" in line and "?x?" in line:
+                        line = re.sub(
+                            "tensor.empty\(%dim\)",
+                            "tensor.empty(%dim, %dim)",
+                            line,
+                        )
+                    if "arith.cmpi" in line:
+                        line = re.sub("c19", "dim", line)
+                    if " 19," in line:
+                        line = re.sub(" 19,", " %dim,", line)
+                    if "20x" in line:
+                        line = re.sub("20x", "?x", line)
+                        line = re.sub(
+                            "tensor.empty\(\)", "tensor.empty(%dimp1)", line
+                        )
+                    if " 20," in line:
+                        line = re.sub(" 20,", " %dimp1,", line)
+                    return line
 
-            for line in module_str.splitlines():
-                if "%c19_i64 = arith.constant 19 : i64" in line:
-                    new_lines.append("%c2 = arith.constant 2 : index")
-                    new_lines.append(
-                        "%dim_4_int = tensor.dim %arg1, %c2 : tensor<1x32x?x128xf32>"
-                    )
-                    new_lines.append(
-                        "%dim_i64 = arith.index_cast %dim_4_int : index to i64"
-                    )
-                    continue
-                if "%c2 = arith.constant 2 : index" in line:
-                    continue
-                if "%c20_i64 = arith.constant 20 : i64" in line:
-                    new_lines.append("%c1_i64 = arith.constant 1 : i64")
-                    new_lines.append(
-                        "%c20_i64 = arith.addi %dim_i64, %c1_i64 : i64"
-                    )
-                    new_lines.append(
-                        "%dimp1 = arith.index_cast %c20_i64 : i64 to index"
-                    )
-                    continue
-                line = remove_constant_dim(line)
-                new_lines.append(line)
+                module_str = str(module)
+                new_lines = []
 
-            module_str = "\n".join(new_lines)
-            bytecode = module_str.encode("UTF-8")
-            bytecode_stream = BytesIO(bytecode)
-            bytecode = bytecode_stream.read()
-            f_ = open(f"{self.model_name}.mlir", "wb")
-            f_.write(bytecode)
-            f_.close()
+                for line in module_str.splitlines():
+                    if "%c19_i64 = arith.constant 19 : i64" in line:
+                        new_lines.append("%c2 = arith.constant 2 : index")
+                        new_lines.append(
+                            "%dim_4_int = tensor.dim %arg1, %c2 : tensor<1x32x?x128xf32>"
+                        )
+                        new_lines.append(
+                            "%dim_i64 = arith.index_cast %dim_4_int : index to i64"
+                        )
+                        continue
+                    if "%c2 = arith.constant 2 : index" in line:
+                        continue
+                    if "%c20_i64 = arith.constant 20 : i64" in line:
+                        new_lines.append("%c1_i64 = arith.constant 1 : i64")
+                        new_lines.append(
+                            "%c20_i64 = arith.addi %dim_i64, %c1_i64 : i64"
+                        )
+                        new_lines.append(
+                            "%dimp1 = arith.index_cast %c20_i64 : i64 to index"
+                        )
+                        continue
+                    line = remove_constant_dim(line)
+                    new_lines.append(line)
+
+                module_str = "\n".join(new_lines)
+                bytecode = module_str.encode("UTF-8")
+                bytecode_stream = BytesIO(bytecode)
+                bytecode = bytecode_stream.read()
+                f_ = open(mlir_path, "wb")
+                f_.write(bytecode)
+                f_.close()
 
         shark_module = SharkInference(
             mlir_module=bytecode, device=self.device, mlir_dialect="tm_tensor"
