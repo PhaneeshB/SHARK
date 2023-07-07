@@ -887,7 +887,7 @@ class UnshardedVicuna(SharkLLMBase):
         second_vicuna_mlir_path=None,
         first_vicuna_vmfb_path=None,
         second_vicuna_vmfb_path=None,
-        load_mlir_from_shark_tank=True,
+        load_mlir_from_shark_tank=False,
         low_device_memory=False,
         weight_group_size=128,
     ) -> None:
@@ -1548,7 +1548,7 @@ if __name__ == "__main__":
             second_vicuna_mlir_path=second_vic_mlir_path,
             first_vicuna_vmfb_path=first_vic_vmfb_path,
             second_vicuna_vmfb_path=second_vic_vmfb_path,
-            load_mlir_from_shark_tank=args.load_mlir_from_shark_tank,
+            load_mlir_from_shark_tank=False,
             weight_group_size=args.weight_group_size,
         )
     else:
