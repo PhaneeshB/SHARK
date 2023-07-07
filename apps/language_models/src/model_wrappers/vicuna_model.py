@@ -289,8 +289,8 @@ class SecondVicuna(torch.nn.Module):
 class CombinedModel(torch.nn.Module):
     def __init__(
         self,
-        first_vicuna_model_path="TheBloke/vicuna-7B-1.1-HF",
-        second_vicuna_model_path="TheBloke/vicuna-7B-1.1-HF",
+        first_vicuna_model_path="lmsys/vicuna-7b-v1.3",
+        second_vicuna_model_path="lmsys/vicuna-7b-v1.3",
     ):
         super().__init__()
         self.first_vicuna = FirstVicuna(first_vicuna_model_path)

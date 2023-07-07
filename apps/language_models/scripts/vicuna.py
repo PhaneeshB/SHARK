@@ -103,7 +103,14 @@ parser.add_argument(
 )
 
 
-def brevitas〇matmul_rhs_group_quant〡shape(lhs: List[int], rhs: List[int], rhs_scale: List[int], rhs_zero_point: List[int], rhs_bit_width: int, rhs_group_size: int) -> List[int]:
+def brevitas〇matmul_rhs_group_quant〡shape(
+    lhs: List[int],
+    rhs: List[int],
+    rhs_scale: List[int],
+    rhs_zero_point: List[int],
+    rhs_bit_width: int,
+    rhs_group_size: int,
+) -> List[int]:
     if len(lhs) == 3 and len(rhs) == 2:
         return [lhs[0], lhs[1], rhs[0]]
     elif len(lhs) == 2 and len(rhs) == 2:
@@ -112,20 +119,30 @@ def brevitas〇matmul_rhs_group_quant〡shape(lhs: List[int], rhs: List[int], rh
         raise ValueError("Input shapes not supported.")
 
 
-def brevitas〇matmul_rhs_group_quant〡dtype(lhs_rank_dtype: Tuple[int, int], rhs_rank_dtype: Tuple[int, int], rhs_scale_rank_dtype: Tuple[int, int], rhs_zero_point_rank_dtype: Tuple[int, int], rhs_bit_width: int, rhs_group_size: int) -> int:
+def brevitas〇matmul_rhs_group_quant〡dtype(
+    lhs_rank_dtype: Tuple[int, int],
+    rhs_rank_dtype: Tuple[int, int],
+    rhs_scale_rank_dtype: Tuple[int, int],
+    rhs_zero_point_rank_dtype: Tuple[int, int],
+    rhs_bit_width: int,
+    rhs_group_size: int,
+) -> int:
     # output dtype is the dtype of the lhs float input
     lhs_rank, lhs_dtype = lhs_rank_dtype
     return lhs_dtype
 
 
-def brevitas〇matmul_rhs_group_quant〡has_value_semantics(lhs, rhs, rhs_scale, rhs_zero_point, rhs_bit_width, rhs_group_size) -> None:
+def brevitas〇matmul_rhs_group_quant〡has_value_semantics(
+    lhs, rhs, rhs_scale, rhs_zero_point, rhs_bit_width, rhs_group_size
+) -> None:
     return
 
 
 brevitas_matmul_rhs_group_quant_library = [
     brevitas〇matmul_rhs_group_quant〡shape,
     brevitas〇matmul_rhs_group_quant〡dtype,
-    brevitas〇matmul_rhs_group_quant〡has_value_semantics]
+    brevitas〇matmul_rhs_group_quant〡has_value_semantics,
+]
 
 
 class ShardedVicuna(SharkLLMBase):
@@ -133,7 +150,7 @@ class ShardedVicuna(SharkLLMBase):
     def __init__(
         self,
         model_name,
-        hf_model_path="TheBloke/vicuna-7B-1.1-HF",
+        hf_model_path="lmsys/vicuna-7b-v1.3",
         max_num_tokens=512,
         device="cuda",
         precision="fp32",
@@ -862,7 +879,7 @@ class UnshardedVicuna(SharkLLMBase):
     def __init__(
         self,
         model_name,
-        hf_model_path="TheBloke/vicuna-7B-1.1-HF",
+        hf_model_path="lmsys/vicuna-7b-v1.3",
         max_num_tokens=512,
         device="cuda",
         precision="fp32",
