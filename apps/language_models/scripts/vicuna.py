@@ -892,6 +892,7 @@ class UnshardedVicuna(SharkLLMBase):
         weight_group_size=128,
     ) -> None:
         super().__init__(model_name, hf_model_path, max_num_tokens)
+        print(f"[DEBUG] hf model name : {self.hf_model_path}")
         self.max_sequence_length = 256
         self.device = device
         self.precision = precision

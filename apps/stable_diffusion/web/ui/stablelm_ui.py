@@ -61,7 +61,7 @@ def chat(curr_system_message, history, model, device, precision):
             else:
                 print("unrecognized device")
             vicuna_model = UnshardedVicuna(
-                "vicuna",
+                "vicuna1p3",
                 hf_model_path=model,
                 device=device,
                 precision=precision,
@@ -128,6 +128,7 @@ with gr.Blocks(title="Chatbot") as stablelm_chat:
             choices=[
                 "stabilityai/stablelm-tuned-alpha-3b",
                 "TheBloke/vicuna-7B-1.1-HF",
+                "lmsys/vicuna-7b-v1.3",
             ],
         )
         supported_devices = available_devices
