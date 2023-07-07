@@ -43,7 +43,7 @@ def chat(curr_system_message, history, model, device, precision):
     global sharded_model
     global past_key_values
     global vicuna_model
-    if "vicuna" in model:
+    if "vicuna" in model or "codegen" in model:
         from apps.language_models.scripts.vicuna import (
             UnshardedVicuna,
         )
@@ -61,7 +61,7 @@ def chat(curr_system_message, history, model, device, precision):
             else:
                 print("unrecognized device")
             vicuna_model = UnshardedVicuna(
-                "vicuna",
+                "codegen2p5",
                 hf_model_path=model,
                 device=device,
                 precision=precision,
@@ -128,6 +128,7 @@ with gr.Blocks(title="Chatbot") as stablelm_chat:
             choices=[
                 "stabilityai/stablelm-tuned-alpha-3b",
                 "TheBloke/vicuna-7B-1.1-HF",
+                "Salesforce/codegen25-7b-multi",
             ],
         )
         supported_devices = available_devices

@@ -103,7 +103,14 @@ parser.add_argument(
 )
 
 
-def brevitas〇matmul_rhs_group_quant〡shape(lhs: List[int], rhs: List[int], rhs_scale: List[int], rhs_zero_point: List[int], rhs_bit_width: int, rhs_group_size: int) -> List[int]:
+def brevitas〇matmul_rhs_group_quant〡shape(
+    lhs: List[int],
+    rhs: List[int],
+    rhs_scale: List[int],
+    rhs_zero_point: List[int],
+    rhs_bit_width: int,
+    rhs_group_size: int,
+) -> List[int]:
     if len(lhs) == 3 and len(rhs) == 2:
         return [lhs[0], lhs[1], rhs[0]]
     elif len(lhs) == 2 and len(rhs) == 2:
@@ -112,20 +119,30 @@ def brevitas〇matmul_rhs_group_quant〡shape(lhs: List[int], rhs: List[int], rh
         raise ValueError("Input shapes not supported.")
 
 
-def brevitas〇matmul_rhs_group_quant〡dtype(lhs_rank_dtype: Tuple[int, int], rhs_rank_dtype: Tuple[int, int], rhs_scale_rank_dtype: Tuple[int, int], rhs_zero_point_rank_dtype: Tuple[int, int], rhs_bit_width: int, rhs_group_size: int) -> int:
+def brevitas〇matmul_rhs_group_quant〡dtype(
+    lhs_rank_dtype: Tuple[int, int],
+    rhs_rank_dtype: Tuple[int, int],
+    rhs_scale_rank_dtype: Tuple[int, int],
+    rhs_zero_point_rank_dtype: Tuple[int, int],
+    rhs_bit_width: int,
+    rhs_group_size: int,
+) -> int:
     # output dtype is the dtype of the lhs float input
     lhs_rank, lhs_dtype = lhs_rank_dtype
     return lhs_dtype
 
 
-def brevitas〇matmul_rhs_group_quant〡has_value_semantics(lhs, rhs, rhs_scale, rhs_zero_point, rhs_bit_width, rhs_group_size) -> None:
+def brevitas〇matmul_rhs_group_quant〡has_value_semantics(
+    lhs, rhs, rhs_scale, rhs_zero_point, rhs_bit_width, rhs_group_size
+) -> None:
     return
 
 
 brevitas_matmul_rhs_group_quant_library = [
     brevitas〇matmul_rhs_group_quant〡shape,
     brevitas〇matmul_rhs_group_quant〡dtype,
-    brevitas〇matmul_rhs_group_quant〡has_value_semantics]
+    brevitas〇matmul_rhs_group_quant〡has_value_semantics,
+]
 
 
 class ShardedVicuna(SharkLLMBase):
@@ -133,7 +150,7 @@ class ShardedVicuna(SharkLLMBase):
     def __init__(
         self,
         model_name,
-        hf_model_path="TheBloke/vicuna-7B-1.1-HF",
+        hf_model_path="Salesforce/codegen25-7b-multi",
         max_num_tokens=512,
         device="cuda",
         precision="fp32",
@@ -141,6 +158,7 @@ class ShardedVicuna(SharkLLMBase):
         weight_group_size=128,
     ) -> None:
         super().__init__(model_name, hf_model_path, max_num_tokens)
+        print(f"[DEBUG] hf model name: {self.hf_model_path}")
         self.max_sequence_length = 256
         self.device = device
         self.precision = precision
@@ -862,7 +880,7 @@ class UnshardedVicuna(SharkLLMBase):
     def __init__(
         self,
         model_name,
-        hf_model_path="TheBloke/vicuna-7B-1.1-HF",
+        hf_model_path="Salesforce/codegen25-7b-multi",
         max_num_tokens=512,
         device="cuda",
         precision="fp32",
@@ -875,6 +893,7 @@ class UnshardedVicuna(SharkLLMBase):
         weight_group_size=128,
     ) -> None:
         super().__init__(model_name, hf_model_path, max_num_tokens)
+        print(f"[DEBUG] hf model name: {self.hf_model_path}")
         self.max_sequence_length = 256
         self.device = device
         self.precision = precision
@@ -903,9 +922,11 @@ class UnshardedVicuna(SharkLLMBase):
     def get_model_path(self, model_number="first", suffix="mlir"):
         safe_device = self.device.split("-")[0]
         if suffix == "mlir":
-            return Path(f"{model_number}_vicuna_{self.precision}.{suffix}")
+            return Path(
+                f"{model_number}_{self.model_name}_{self.precision}.{suffix}"
+            )
         return Path(
-            f"{model_number}_vicuna_{self.precision}_{safe_device}.{suffix}"
+            f"{model_number}_{self.model_name}_{self.precision}_{safe_device}.{suffix}"
         )
 
     def get_tokenizer(self):
@@ -942,7 +963,7 @@ class UnshardedVicuna(SharkLLMBase):
                 if self.precision in ["fp32", "fp16", "int8", "int4"]:
                     # download MLIR from shark_tank
                     download_public_file(
-                        f"gs://shark_tank/vicuna/unsharded/mlir/{self.first_vicuna_mlir_path.name}",
+                        f"gs://shark_tank/{self.model_name}/unsharded/mlir/{self.first_vicuna_mlir_path.name}",
                         self.first_vicuna_mlir_path.absolute(),
                         single_file=True,
                     )
@@ -1104,7 +1125,7 @@ class UnshardedVicuna(SharkLLMBase):
                 if self.precision in ["fp32", "fp16", "int8", "int4"]:
                     # download MLIR from shark_tank
                     download_public_file(
-                        f"gs://shark_tank/vicuna/unsharded/mlir/{self.second_vicuna_mlir_path.name}",
+                        f"gs://shark_tank/{self.model_name}/unsharded/mlir/{self.second_vicuna_mlir_path.name}",
                         self.second_vicuna_mlir_path.absolute(),
                         single_file=True,
                     )
@@ -1524,7 +1545,7 @@ if __name__ == "__main__":
         )
 
         vic = UnshardedVicuna(
-            "vicuna",
+            "codegen2p5",
             device=args.device,
             precision=args.precision,
             first_vicuna_mlir_path=first_vic_mlir_path,
@@ -1542,7 +1563,7 @@ if __name__ == "__main__":
         else:
             config_json = None
         vic = ShardedVicuna(
-            "vicuna",
+            "codegen2p5",
             device=args.device,
             precision=args.precision,
             config_json=config_json,

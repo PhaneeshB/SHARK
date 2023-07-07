@@ -121,7 +121,8 @@ path = shark_module.save_module(
     ],
 )
 print(f"[DEBUG] Vmfb created!")
-# shark_module.load_module(path)
+
+shark_module.load_module(path)
 
 
 op_shark = shark_module("forward", input_ids)

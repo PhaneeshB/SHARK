@@ -118,8 +118,10 @@ class SharkStableLM(SharkLLMBase):
         return shark_module
 
     def get_tokenizer(self):
-        tok = AutoTokenizer.from_pretrained(self.hf_model_path)
-        tok.add_special_tokens({"pad_token": "<PAD>"})
+        tok = AutoTokenizer.from_pretrained(
+            self.hf_model_path, trust_remote_code=True
+        )
+        # tok.add_special_tokens({"pad_token": "<PAD>"})
         # print("[DEBUG] Sucessfully loaded the tokenizer to the memory")
         return tok
 
