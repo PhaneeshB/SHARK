@@ -23,7 +23,10 @@ class CodeGen(torch.nn.Module):
         op = self.model.forward(input_ids=inputs, use_cache=True)
         return_vals = []
         return_vals.append(op.logits)
-        return_vals.extend(op.past_key_values)
+        temp_past_key_values = op.past_key_values
+        for item in temp_past_key_values:
+            return_vals.append(item[0])
+            return_vals.append(item[1])
         return tuple(return_vals)
 
 
@@ -37,7 +40,9 @@ from io import BytesIO
 device = "cpu"  # for GPU usage or "cpu" for CPU usage
 precision = "fp16"
 
-tokenizer = AutoTokenizer.from_pretrained(hf_model_path,)
+tokenizer = AutoTokenizer.from_pretrained(
+    hf_model_path, trust_remote_code=True
+)
 
 # inputs = tokenizer.encode("def print_hello_world():", return_tensors="pt")
 
@@ -59,7 +64,7 @@ print(f"[DEBUG] pytorch outputs saved")
 
 ts_graph = import_with_fx(
     sc_model,
-    inputs=(input_ids),
+    inputs=[input_ids],
     is_f16=precision == "fp16",
     f16_input_mask=[False],
     mlir_type="torchscript",
