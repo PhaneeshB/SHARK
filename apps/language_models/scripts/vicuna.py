@@ -921,9 +921,11 @@ class UnshardedVicuna(SharkLLMBase):
     def get_model_path(self, model_number="first", suffix="mlir"):
         safe_device = self.device.split("-")[0]
         if suffix == "mlir":
-            return Path(f"{model_number}_vicuna_{self.precision}.{suffix}")
+            return Path(
+                f"{model_number}_{self.model_name}_{self.precision}.{suffix}"
+            )
         return Path(
-            f"{model_number}_vicuna_{self.precision}_{safe_device}.{suffix}"
+            f"{model_number}_{self.model_name}_{self.precision}_{safe_device}.{suffix}"
         )
 
     def get_tokenizer(self):
@@ -959,6 +961,7 @@ class UnshardedVicuna(SharkLLMBase):
             if self.load_mlir_from_shark_tank:
                 if self.precision in ["fp32", "fp16", "int8", "int4"]:
                     # download MLIR from shark_tank
+                    # TODO: choose dir dynamically based on model name / sharding / file type
                     download_public_file(
                         f"gs://shark_tank/vicuna/unsharded/mlir/{self.first_vicuna_mlir_path.name}",
                         self.first_vicuna_mlir_path.absolute(),
