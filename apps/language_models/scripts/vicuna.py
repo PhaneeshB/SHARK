@@ -888,7 +888,7 @@ class UnshardedVicuna(SharkLLMBase):
         second_vicuna_mlir_path=None,
         first_vicuna_vmfb_path=None,
         second_vicuna_vmfb_path=None,
-        load_mlir_from_shark_tank=True,
+        load_mlir_from_shark_tank=False,
         low_device_memory=False,
         weight_group_size=128,
     ) -> None:
@@ -931,7 +931,9 @@ class UnshardedVicuna(SharkLLMBase):
 
     def get_tokenizer(self):
         tokenizer = AutoTokenizer.from_pretrained(
-            self.hf_model_path, use_fast=False
+            self.hf_model_path,
+            use_fast=False,
+            trust_remote_code=True,
         )
         return tokenizer
 
@@ -982,9 +984,11 @@ class UnshardedVicuna(SharkLLMBase):
                     )
 
             if not mlir_generated:
-                compilation_prompt = "".join(["0" for _ in range(17)])
+                # compilation_prompt = "".join(["0" for _ in range(17)])
+                compilation_prompt = "def hello_world():\n    print('Hello World')\n    print('Hello World')"
                 compilation_input_ids = self.tokenizer(
-                    compilation_prompt
+                    compilation_prompt,
+                    return_tensors="pt",
                 ).input_ids
                 compilation_input_ids = torch.tensor(
                     compilation_input_ids
@@ -1355,7 +1359,7 @@ class UnshardedVicuna(SharkLLMBase):
         res_str = self.tokenizer.decode(res_tokens)
         return res_str
 
-    def generate(self, prompt, cli=False):
+    def generate(self, prompt, cli=True):
         # TODO: refactor for cleaner integration
         import gc
 
