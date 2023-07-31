@@ -175,12 +175,14 @@ class VicunaBase(SharkLLMBase):
     def combine_mlir_scripts(
         self, first_vicuna_mlir, second_vicuna_mlir, output_name
     ):
-        print(f"[DEBUG] combining first and second mlir")
+        print("Combining mlir scripts")
         maps1 = []
         maps2 = []
         constants = set()
+        constant_names = set()
         f1 = []
         f2 = []
+        duplicate_vars = {}
         first_vicuna_mlir = first_vicuna_mlir.splitlines()
         while first_vicuna_mlir:
             line = first_vicuna_mlir.pop(0)
@@ -188,6 +190,7 @@ class VicunaBase(SharkLLMBase):
                 maps1.append(line)
             elif re.search("arith.constant", line):
                 constants.add(line)
+                constant_names.add(line.split("=")[0].strip())
             elif not re.search("module", line):
                 line = re.sub("forward", "first_vicuna_forward", line)
                 f1.append(line)
@@ -206,11 +209,20 @@ class VicunaBase(SharkLLMBase):
         second_vicuna_mlir = second_vicuna_mlir.splitlines()
         while second_vicuna_mlir:
             line = second_vicuna_mlir.pop(0)
+            for dup_var in duplicate_vars.keys():
+                line = re.sub(f"\b({dup_var}(?!\d\b|\w))\b", duplicate_vars[dup_var], line)
             if re.search("#map\d*\s*=", line):
                 maps2.append(line)
             elif "global_seed" in line:
                 continue
             elif re.search("arith.constant", line):
+                constant_name = line.split("=")[0].strip()
+                if constant_name in constant_names:
+                    new_constant_name = constant_name + "_0"
+                    duplicate_vars[constant_name] = new_constant_name
+                    line = re.sub(f"\b({constant_name}(?!\d\b|\w))\b", new_constant_name, line)
+                constant_names.add(line.split("=")[0].strip())
+
                 constants.add(line)
             elif not re.search("module", line):
                 line = re.sub("forward", "second_vicuna_forward", line)
@@ -245,15 +257,15 @@ class VicunaBase(SharkLLMBase):
             vname = vname.strip()
             vbody = re.sub("arith.constant", "", vbody)
             vbody = vbody.strip()
-            if len(vbody.split(":")) < 2:
+            if len(vbody.split(":"))<2:
                 print(constant)
             vdtype = vbody.split(":")[-1].strip()
             fixed_vdtype = vdtype
             if "c1_i64" in vname:
                 print(constant)
-                counter += 1
-            if counter == 2:
-                counter = 0
+                counter+=1
+            if counter==2:
+                counter=0
                 print("detected duplicate")
                 continue
             vnames.append(vname)
@@ -291,26 +303,18 @@ class VicunaBase(SharkLLMBase):
             if "func.func" in line:
                 new_f2.append(line)
                 for global_var in global_var_loading2:
-                    if (
-                        "c20_i64 = arith.addi %dim_i64, %c1_i64 : i64"
-                        in global_var
-                    ):
+                    if "c20_i64 = arith.addi %dim_i64, %c1_i64 : i64" in global_var:
                         print(global_var)
                     new_f2.append(global_var)
             else:
                 if "c20_i64 = arith.addi %dim_i64, %c1_i64 : i64" in line:
-                    new_f2.append("%" + line)
+                    new_f2.append("%"+line)
                 else:
                     new_f2.append(line)
 
         f1 = new_f1
         f2 = new_f2
-        print(
-            [
-                "c20_i64 = arith.addi %dim_i64, %c1_i64 : i64" in x
-                for x in [maps1, maps2, global_vars, f1, f2]
-            ]
-        )
+        print(["c20_i64 = arith.addi %dim_i64, %c1_i64 : i64" in x for x in [maps1, maps2, global_vars, f1, f2]])
         whole_string = "\n".join(
             maps1
             + maps2
