@@ -22,7 +22,7 @@ import matplotlib as mpl
 from pylab import rcParams
 import json
 
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+# DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 df = pd.read_csv("bitcoin-sentiment-tweets.csv")
@@ -51,7 +51,7 @@ BASE_MODEL = "decapoda-research/llama-7b-hf"
 
 model = LlamaForCausalLM.from_pretrained(
     BASE_MODEL,
-    load_in_8bit=True,
+    # load_in_8bit=True,
     torch_dtype=torch.float16,
     device_map="auto",
 )
@@ -128,7 +128,7 @@ LEARNING_RATE = 3e-4
 TRAIN_STEPS = 300
 OUTPUT_DIR = "experiments"
 
-model = prepare_model_for_int8_training(model)
+# model = prepare_model_for_int8_training(model)
 config = LoraConfig(
     r=LORA_R,
     lora_alpha=LORA_ALPHA,
