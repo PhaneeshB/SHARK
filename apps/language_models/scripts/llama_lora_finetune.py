@@ -137,6 +137,8 @@ config = LoraConfig(
     bias="none",
     task_type="CAUSAL_LM",
 )
+
+print("[DEBUG] get peft model")
 model = get_peft_model(model, config)
 model.print_trainable_parameters()
 
@@ -180,5 +182,6 @@ model.state_dict = (
 
 model = torch.compile(model)
 
+print("[DEBUG] begin training")
 trainer.train()
 model.save_pretrained(OUTPUT_DIR)
