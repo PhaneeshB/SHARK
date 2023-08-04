@@ -9,6 +9,10 @@ import re
 from shark.shark_inference import SharkInference
 from pathlib import Path
 import gc
+from typing import List
+from io import BytesIO
+
+
 
 
 def write_in_dynamic_inputs0(module, dynamic_input_size):
@@ -158,126 +162,125 @@ print("Saved vic vmfb at ", str(path))
 shark_module.load_module(path)
 
 
-# def _remove_nones(fx_g: torch.fx.GraphModule) -> List[int]:
-#     removed_indexes = []
-#     for node in fx_g.graph.nodes:
-#         if node.op == "output":
-#             assert (
-#                 len(node.args) == 1
-#             ), "Output node must have a single argument"
-#             node_arg = node.args[0]
-#             if isinstance(node_arg, (list, tuple)):
-#                 node_arg = list(node_arg)
-#                 node_args_len = len(node_arg)
-#                 for i in range(node_args_len):
-#                     curr_index = node_args_len - (i + 1)
-#                     if node_arg[curr_index] is None:
-#                         removed_indexes.append(curr_index)
-#                         node_arg.pop(curr_index)
-#                 node.args = (tuple(node_arg),)
-#                 break
+def _remove_nones(fx_g: torch.fx.GraphModule) -> List[int]:
+    removed_indexes = []
+    for node in fx_g.graph.nodes:
+        if node.op == "output":
+            assert (
+                len(node.args) == 1
+            ), "Output node must have a single argument"
+            node_arg = node.args[0]
+            if isinstance(node_arg, (list, tuple)):
+                node_arg = list(node_arg)
+                node_args_len = len(node_arg)
+                for i in range(node_args_len):
+                    curr_index = node_args_len - (i + 1)
+                    if node_arg[curr_index] is None:
+                        removed_indexes.append(curr_index)
+                        node_arg.pop(curr_index)
+                node.args = (tuple(node_arg),)
+                break
+    if len(removed_indexes) > 0:
+        fx_g.graph.lint()
+        fx_g.graph.eliminate_dead_code()
+        fx_g.recompile()
+    removed_indexes.sort()
+    return removed_indexes
 
-#     if len(removed_indexes) > 0:
-#         fx_g.graph.lint()
-#         fx_g.graph.eliminate_dead_code()
-#         fx_g.recompile()
-#     removed_indexes.sort()
-#     return removed_indexes
+def _unwrap_single_tuple_return(fx_g: torch.fx.GraphModule) -> bool:
+    """
+    Replace tuple with tuple element in functions that return one-element tuples.
+    Returns true if an unwrapping took place, and false otherwise.
+    """
+    unwrapped_tuple = False
+    for node in fx_g.graph.nodes:
+        if node.op == "output":
+            assert (
+                len(node.args) == 1
+            ), "Output node must have a single argument"
+            node_arg = node.args[0]
+            if isinstance(node_arg, tuple):
+                if len(node_arg) == 1:
+                    node.args = (node_arg[0],)
+                    unwrapped_tuple = True
+                    break
 
-# def _unwrap_single_tuple_return(fx_g: torch.fx.GraphModule) -> bool:
-#     """
-#     Replace tuple with tuple element in functions that return one-element tuples.
-#     Returns true if an unwrapping took place, and false otherwise.
-#     """
-#     unwrapped_tuple = False
-#     for node in fx_g.graph.nodes:
-#         if node.op == "output":
-#             assert (
-#                 len(node.args) == 1
-#             ), "Output node must have a single argument"
-#             node_arg = node.args[0]
-#             if isinstance(node_arg, tuple):
-#                 if len(node_arg) == 1:
-#                     node.args = (node_arg[0],)
-#                     unwrapped_tuple = True
-#                     break
+    if unwrapped_tuple:
+        fx_g.graph.lint()
+        fx_g.recompile()
+    return unwrapped_tuple
 
-#     if unwrapped_tuple:
-#         fx_g.graph.lint()
-#         fx_g.recompile()
-#     return unwrapped_tuple
+def _returns_nothing(fx_g: torch.fx.GraphModule) -> bool:
+    for node in fx_g.graph.nodes:
+        if node.op == "output":
+            assert (
+                len(node.args) == 1
+            ), "Output node must have a single argument"
+            node_arg = node.args[0]
+            if isinstance(node_arg, tuple):
+                return len(node_arg) == 0
+    return False
 
-# def _returns_nothing(fx_g: torch.fx.GraphModule) -> bool:
-#     for node in fx_g.graph.nodes:
-#         if node.op == "output":
-#             assert (
-#                 len(node.args) == 1
-#             ), "Output node must have a single argument"
-#             node_arg = node.args[0]
-#             if isinstance(node_arg, tuple):
-#                 return len(node_arg) == 0
-#     return False
+def transform_fx(fx_g):
+    for node in fx_g.graph.nodes:
+        if node.op == "call_function":
+            if node.target in [
+                torch.ops.aten.empty,
+            ]:
+                # aten.empty should be filled with zeros.
+                if node.target in [torch.ops.aten.empty]:
+                    with fx_g.graph.inserting_after(node):
+                        new_node = fx_g.graph.call_function(
+                            torch.ops.aten.zero_,
+                            args=(node,),
+                        )
+                        node.append(new_node)
+                        node.replace_all_uses_with(new_node)
+                        new_node.args = (node,)
 
-# def transform_fx(fx_g):
-#     for node in fx_g.graph.nodes:
-#         if node.op == "call_function":
-#             if node.target in [
-#                 torch.ops.aten.empty,
-#             ]:
-#                 # aten.empty should be filled with zeros.
-#                 if node.target in [torch.ops.aten.empty]:
-#                     with fx_g.graph.inserting_after(node):
-#                         new_node = fx_g.graph.call_function(
-#                             torch.ops.aten.zero_,
-#                             args=(node,),
-#                         )
-#                         node.append(new_node)
-#                         node.replace_all_uses_with(new_node)
-#                         new_node.args = (node,)
-
-#     fx_g.graph.lint()
+    fx_g.graph.lint()
 
 
-# @make_simple_dynamo_backend
-# def refbackend_torchdynamo_backend(
-#     fx_graph: torch.fx.GraphModule, example_inputs: List[torch.Tensor]
-# ):
-#     # handling usage of empty tensor without initializing
-#     transform_fx(fx_graph)
-#     fx_graph.recompile()
-#     if _returns_nothing(fx_graph):
-#         return fx_graph
-#     removed_none_indexes = _remove_nones(fx_graph)
-#     was_unwrapped = _unwrap_single_tuple_return(fx_graph)
+@make_simple_dynamo_backend
+def refbackend_torchdynamo_backend(
+    fx_graph: torch.fx.GraphModule, example_inputs: List[torch.Tensor]
+):
+    # handling usage of empty tensor without initializing
+    transform_fx(fx_graph)
+    fx_graph.recompile()
+    if _returns_nothing(fx_graph):
+        return fx_graph
+    removed_none_indexes = _remove_nones(fx_graph)
+    was_unwrapped = _unwrap_single_tuple_return(fx_graph)
 
-#     mlir_module = torch_mlir.compile(
-#         fx_graph, example_inputs, output_type="linalg-on-tensors"
-#     )
+    mlir_module = torch_mlir.compile(
+        fx_graph, example_inputs, output_type="linalg-on-tensors"
+    )
 
-#     bytecode_stream = BytesIO()
-#     mlir_module.operation.write_bytecode(bytecode_stream)
-#     bytecode = bytecode_stream.getvalue()
+    bytecode_stream = BytesIO()
+    mlir_module.operation.write_bytecode(bytecode_stream)
+    bytecode = bytecode_stream.getvalue()
 
-#     shark_module = SharkInference(
-#         mlir_module=bytecode, device=args.device, mlir_dialect="tm_tensor"
-#     )
-#     shark_module.compile()
+    shark_module = SharkInference(
+        mlir_module=bytecode, device=args.device, mlir_dialect="tm_tensor"
+    )
+    shark_module.compile()
 
-#     def compiled_callable(*inputs):
-#         inputs = [x.numpy() for x in inputs]
-#         result = shark_module("forward", inputs)
-#         if was_unwrapped:
-#             result = [
-#                 result,
-#             ]
-#         if not isinstance(result, list):
-#             result = torch.from_numpy(result)
-#         else:
-#             result = tuple(torch.from_numpy(x) for x in result)
-#             result = list(result)
-#             for removed_index in removed_none_indexes:
-#                 result.insert(removed_index, None)
-#             result = tuple(result)
-#         return result
+    def compiled_callable(*inputs):
+        inputs = [x.numpy() for x in inputs]
+        result = shark_module("forward", inputs)
+        if was_unwrapped:
+            result = [
+                result,
+            ]
+        if not isinstance(result, list):
+            result = torch.from_numpy(result)
+        else:
+            result = tuple(torch.from_numpy(x) for x in result)
+            result = list(result)
+            for removed_index in removed_none_indexes:
+                result.insert(removed_index, None)
+            result = tuple(result)
+        return result
 
-#     return compiled_callable
+    return compiled_callable
