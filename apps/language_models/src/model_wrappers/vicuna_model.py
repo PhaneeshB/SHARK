@@ -21,12 +21,15 @@ class FirstVicuna(torch.nn.Module):
         self.model = AutoModelForCausalLM.from_pretrained(
             model_path, low_cpu_mem_usage=True, **kwargs
         )
+        self.model.to("cuda")
+        self.model.half()
+        print(f"first vic self.model: {self.model.dtype} {self.model.device}")
         if precision in ["int4", "int8"]:
             print("First Vicuna applying weight quantization..")
             weight_bit_width = 4 if precision == "int4" else 8
             quantize_model(
                 get_model_impl(self.model).layers,
-                dtype=torch.float32,
+                dtype=torch.float16,
                 weight_bit_width=weight_bit_width,
                 weight_param_method="stats",
                 weight_scale_precision="float",
@@ -64,12 +67,15 @@ class SecondVicuna(torch.nn.Module):
         self.model = AutoModelForCausalLM.from_pretrained(
             model_path, low_cpu_mem_usage=True, **kwargs
         )
+        self.model.to("cuda")
+        self.model.half()
+        print(f"sec vic self.model: {self.model.dtype} {self.model.device}")
         if precision in ["int4", "int8"]:
             print("Second Vicuna applying weight quantization..")
             weight_bit_width = 4 if precision == "int4" else 8
             quantize_model(
                 get_model_impl(self.model).layers,
-                dtype=torch.float32,
+                dtype=torch.float16,
                 weight_bit_width=weight_bit_width,
                 weight_param_method="stats",
                 weight_scale_precision="float",

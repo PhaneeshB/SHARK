@@ -1219,7 +1219,7 @@ class UnshardedVicuna(VicunaBase):
         precision="int8",
         vicuna_mlir_path=None,
         vicuna_vmfb_path=None,
-        load_mlir_from_shark_tank=True,
+        load_mlir_from_shark_tank=False,
         low_device_memory=False,
         weight_group_size=128,
         download_vmfb=False,
@@ -1435,7 +1435,7 @@ class UnshardedVicuna(VicunaBase):
                     ).input_ids
                     compilation_input_ids = torch.tensor(
                         compilation_input_ids
-                    ).reshape([1, 19])
+                    ).reshape([1, 19]).to("cuda")
                     firstVicunaCompileInput = (compilation_input_ids,)
                     model = FirstVicuna(
                         self.hf_model_path,
@@ -1460,7 +1460,6 @@ class UnshardedVicuna(VicunaBase):
                     ] = torch_mlir.TensorPlaceholder.like(
                         firstVicunaCompileInput[0], dynamic_axes=[1]
                     )
-
                     firstVicunaCompileInput = tuple(firstVicunaCompileInput)
                     first_module = None
                     print(f"[DEBUG] generating torch mlir")
@@ -1511,10 +1510,10 @@ class UnshardedVicuna(VicunaBase):
                 else:
                     # generate second vicuna
                     compilation_input_ids = torch.zeros(
-                        [1, 1], dtype=torch.int64
+                        [1, 1], dtype=torch.int64, device="cuda",
                     )
                     pkv = tuple(
-                        (torch.zeros([1, 32, 19, 128], dtype=torch.float32))
+                        (torch.zeros([1, 32, 19, 128], dtype=torch.float16, device="cuda"))
                         for _ in range(64)
                     )
                     secondVicunaCompileInput = (compilation_input_ids,) + pkv
