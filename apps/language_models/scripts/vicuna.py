@@ -1218,7 +1218,7 @@ class UnshardedVicuna(VicunaBase):
         precision="int8",
         vicuna_mlir_path=None,
         vicuna_vmfb_path=None,
-        load_mlir_from_shark_tank=True,
+        load_mlir_from_shark_tank=False,
         low_device_memory=False,
         weight_group_size=128,
         download_vmfb=False,
@@ -1242,7 +1242,7 @@ class UnshardedVicuna(VicunaBase):
         self.download_vmfb = download_vmfb
         self.vicuna_vmfb_path = vicuna_vmfb_path
         self.vicuna_mlir_path = vicuna_mlir_path
-        self.load_mlir_from_shark_tank = load_mlir_from_shark_tank
+        self.load_mlir_from_shark_tank = False
         self.low_device_memory = low_device_memory
         self.weight_group_size = weight_group_size
         if self.vicuna_mlir_path == None:
@@ -1422,9 +1422,10 @@ class UnshardedVicuna(VicunaBase):
                 else:
                     compilation_prompt = "".join(["0" for _ in range(17)])
 
-                if Path(f"first_{self.precision}.mlir").exists():
-                    print(f"loading first_{self.precision}.mlir")
-                    with open(Path(f"first_{self.precision}.mlir"), "r") as f:
+                fllama_path = f"first_{self.model_name}_{self.precision}.mlir"
+                if Path(fllama_path).exists():
+                    print(f"loading {fllama_path}")
+                    with open(Path(fllama_path), "r") as f:
                         first_module = f.read()
                 else:
                     # generate first vicuna
@@ -1447,7 +1448,7 @@ class UnshardedVicuna(VicunaBase):
                     ts_graph = import_with_fx(
                         model,
                         firstVicunaCompileInput,
-                        is_f16=self.precision == "fp16",
+                        is_f16=True, #self.precision == "fp16",
                         precision=self.precision,
                         f16_input_mask=[False, False],
                         mlir_type="torchscript",
@@ -1493,19 +1494,29 @@ class UnshardedVicuna(VicunaBase):
                     del firstVicunaCompileInput
                     gc.collect()
 
+                    print(f"[DEBUG] : storing non dynamic mlir")
+                    with open(f"first_{self.model_name}_{self.precision}_NONDYN.mlir", "w+") as f:
+                        f.write(str(first_module))
+
                     print(
                         "[DEBUG] successfully generated first vicuna linalg mlir"
                     )
                     first_module = self.write_in_dynamic_inputs0(
                         str(first_module), dynamic_input_size=19
                     )
-                    if self.cache_vicunas:
-                        with open(f"first_{self.precision}.mlir", "w+") as f:
+                    if True or self.cache_vicunas:
+                        with open(fllama_path, "w+") as f:
                             f.write(first_module)
+                
+                # comment it out when combining into single IR
+                del first_module
+                gc.collect()                
 
-                if Path(f"second_{self.precision}.mlir").exists():
-                    print(f"loading second_{self.precision}.mlir")
-                    with open(Path(f"second_{self.precision}.mlir"), "r") as f:
+                print(f"[DEBUG] Starting generation of second llama")
+                sllama = f"second_{self.model_name}_{self.precision}.mlir"
+                if Path(sllama).exists():
+                    print(f"loading {sllama}")
+                    with open(Path(sllama), "r") as f:
                         second_module = f.read()
                 else:
                     # generate second vicuna
@@ -1513,8 +1524,8 @@ class UnshardedVicuna(VicunaBase):
                         [1, 1], dtype=torch.int64
                     )
                     pkv = tuple(
-                        (torch.zeros([1, 32, 19, 128], dtype=torch.float32))
-                        for _ in range(64)
+                        (torch.zeros([1, 8, 19, 128], dtype=torch.float32))
+                        for _ in range(160)
                     )
                     secondVicunaCompileInput = (compilation_input_ids,) + pkv
                     model = SecondVicuna(
@@ -1528,18 +1539,18 @@ class UnshardedVicuna(VicunaBase):
                     ts_graph = import_with_fx(
                         model,
                         secondVicunaCompileInput,
-                        is_f16=self.precision == "fp16",
+                        is_f16=True, #self.precision == "fp16",
                         precision=self.precision,
-                        f16_input_mask=[False] + [True] * 64,
+                        f16_input_mask=[False] + [True] * 160, # irrelevant since the flow inside is broken, exported out in upcoming lines
                         mlir_type="torchscript",
                     )
                     del model
-                    if self.precision == "fp16":
-                        secondVicunaCompileInput = get_f16_inputs(
-                            secondVicunaCompileInput,
-                            True,
-                            f16_input_mask=[False] + [True] * 64,
-                        )
+                    # if self.precision == "fp16":
+                    secondVicunaCompileInput = get_f16_inputs(
+                        secondVicunaCompileInput,
+                        True,
+                        f16_input_mask=[False] + [True] * 160,
+                    )
                     secondVicunaCompileInput = list(secondVicunaCompileInput)
                     for i in range(len(secondVicunaCompileInput)):
                         if i != 0:
@@ -1579,20 +1590,34 @@ class UnshardedVicuna(VicunaBase):
                     del ts_graph
                     del secondVicunaCompileInput
                     gc.collect()
+
+                    print(f"[DEBUG] - storing non dynamic mlir too")
+                    with open(f"second_{self.model_name}_{self.precision}_NONDYN.mlir", "w+") as f:
+                        f.write(str(second_module))
                     print(
                         "[DEBUG] successfully generated second vicuna linalg mlir"
                     )
                     second_module = self.write_in_dynamic_inputs1(
                         str(second_module)
                     )
-                    if self.cache_vicunas:
-                        with open(f"second_{self.precision}.mlir", "w+") as f:
+                    if True or self.cache_vicunas:
+                        with open(sllama, "w+") as f:
                             f.write(second_module)
 
-                combined_module = self.combine_mlir_scripts(
-                    first_module, second_module, self.vicuna_mlir_path
-                )
-                del first_module, second_module
+                # comment it out when combining into single IR
+                del second_module
+
+                print(f" BOTH first and second llama generated and saved. combining may result in errors so skipping.")
+
+                # moving del first_module up to free up memory 
+                # when there is a requirement to combine ensure both files are pregenerated
+                
+                # EXPECTED END of flow here. ONLY Generates the two IRs
+
+                # combined_module = self.combine_mlir_scripts(
+                #     first_module, second_module, self.vicuna_mlir_path
+                # )
+                # del first_module, second_module
 
         shark_module = SharkInference(
             mlir_module=combined_module,
@@ -1773,7 +1798,7 @@ if __name__ == "__main__":
             precision=args.precision,
             vicuna_mlir_path=vic_mlir_path,
             vicuna_vmfb_path=vic_vmfb_path,
-            load_mlir_from_shark_tank=args.load_mlir_from_shark_tank,
+            load_mlir_from_shark_tank=False,
             weight_group_size=args.weight_group_size,
             download_vmfb=args.download_vmfb,
             cache_vicunas=args.cache_vicunas,
