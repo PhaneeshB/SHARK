@@ -1319,37 +1319,51 @@ class UnshardedVicuna(VicunaBase):
         print("[DEBUG] writing dynamic inputs to second vicuna")
 
         def remove_constant_dim(line):
+            dbg_line = line[:999] +"..."+ line[-100:] if len(line>1000) else line
             if "c19_i64" in line:
+                # print(f"[DEBUG] subbing c19_i64 in {dbg_line}")
                 line = re.sub("c19_i64", "dim_i64", line)
             if "19x" in line:
+                # print(f"[DEBUG] subbing 19x in {dbg_line}")
                 line = re.sub("19x", "?x", line)
                 line = re.sub("tensor.empty\(\)", "tensor.empty(%dim)", line)
             if "tensor.empty" in line and "?x?" in line:
+                # print(f"[DEBUG] subbing empty tensor ?x? in {dbg_line}")
                 line = re.sub(
                     "tensor.empty\(%dim\)",
                     "tensor.empty(%dim, %dim)",
                     line,
                 )
             if "arith.cmpi" in line:
+                # print(f"[DEBUG] subbing arith.cmpi c19 in {dbg_line}")
                 line = re.sub("c19", "dim", line)
             if " 19," in line:
+                # print(f"[DEBUG] subbing dim 19, in {dbg_line}")
                 line = re.sub(" 19,", " %dim,", line)
             if "20x" in line:
+                print(f"[DEBUG] subbing 20x in {dbg_line}")
                 line = re.sub("20x", "?x", line)
                 line = re.sub("tensor.empty\(\)", "tensor.empty(%dimp1)", line)
             if " 20," in line:
+                print(f"[DEBUG] subbing dim 20, in {dbg_line}")
                 line = re.sub(" 20,", " %dimp1,", line)
             return line
 
         module = module.splitlines()
         new_lines = []
+        # dimensions of pkv change from model to model depending on the arch
+        # llama2-70b : 1x8x?x128xdtype
+        # add for others as needed
+        pkv_dim_1 = {"llama2_70b" : 8}
+        pkv_dim_1_use = pkv_dim_1[self.model_name] if self.model_name in pkv_dim_1 else 32
+
         # Using a while loop and the pop method to avoid creating a copy of module
         while module:
             line = module.pop(0)
             if "%c19_i64 = arith.constant 19 : i64" in line:
                 new_lines.append("%c2 = arith.constant 2 : index")
                 new_lines.append(
-                    f"%dim_4_int = tensor.dim %arg1, %c2 : tensor<1x32x?x128x{'f16' if self.precision == 'fp16' else 'f32'}>"
+                    f"%dim_4_int = tensor.dim %arg1, %c2 : tensor<1x{pkv_dim_1_use}x?x128x{'f16' if self.precision in ['int4', 'int8', 'fp16'] else 'f32'}>"
                 )
                 new_lines.append(
                     "%dim_i64 = arith.index_cast %dim_4_int : index to i64"
@@ -1360,7 +1374,7 @@ class UnshardedVicuna(VicunaBase):
             if "%c20_i64 = arith.constant 20 : i64" in line:
                 new_lines.append("%c1_i64 = arith.constant 1 : i64")
                 new_lines.append(
-                    "c20_i64 = arith.addi %dim_i64, %c1_i64 : i64"
+                    "%c20_i64 = arith.addi %dim_i64, %c1_i64 : i64"
                 )
                 new_lines.append(
                     "%dimp1 = arith.index_cast %c20_i64 : i64 to index"
