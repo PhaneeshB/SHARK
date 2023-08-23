@@ -1319,7 +1319,7 @@ class UnshardedVicuna(VicunaBase):
         print("[DEBUG] writing dynamic inputs to second vicuna")
 
         def remove_constant_dim(line):
-            dbg_line = line[:999] +"..."+ line[-100:] if len(line>1000) else line
+            # dbg_line = line[:999] +"..."+ line[-100:] if len(line)>1000 else line
             if "c19_i64" in line:
                 # print(f"[DEBUG] subbing c19_i64 in {dbg_line}")
                 line = re.sub("c19_i64", "dim_i64", line)
@@ -1341,11 +1341,11 @@ class UnshardedVicuna(VicunaBase):
                 # print(f"[DEBUG] subbing dim 19, in {dbg_line}")
                 line = re.sub(" 19,", " %dim,", line)
             if "20x" in line:
-                print(f"[DEBUG] subbing 20x in {dbg_line}")
+                # print(f"[DEBUG] subbing 20x in {dbg_line}")
                 line = re.sub("20x", "?x", line)
                 line = re.sub("tensor.empty\(\)", "tensor.empty(%dimp1)", line)
             if " 20," in line:
-                print(f"[DEBUG] subbing dim 20, in {dbg_line}")
+                # print(f"[DEBUG] subbing dim 20, in {dbg_line}")
                 line = re.sub(" 20,", " %dimp1,", line)
             return line
 
